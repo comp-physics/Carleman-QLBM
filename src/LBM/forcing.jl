@@ -9,11 +9,11 @@ Random.seed!(1234)
 cs2 = lbm_param()
 a, b, c, d, D, Q, w, e = lbm_cons()
 #
-QCFD_HOME = ENV["QCFD_HOME"] * "src/"
+QCFD_SRC = ENV["QCFD_SRC"]
 #---read the prepared random wave vector
 function read_k()
 #    k_dat = readdlm("../f90/k.dat")
-    k_dat = readdlm(QCFD_HOME * "LBM/f90/k.dat")
+    k_dat = readdlm(QCFD_SRC * "LBM/f90/k.dat")
     nk = k_dat[1,1] # number of "kkx" ("kky" or "kkz")
     kav = k_dat[1,2] # forcing factor
     #
