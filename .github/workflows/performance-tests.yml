@@ -37,6 +37,11 @@ jobs:
         echo "QCFD_HOME=${{ github.workspace }}" >> $GITHUB_ENV
         echo "QCFD_SRC=${{ github.workspace }}/src/" >> $GITHUB_ENV
         
+    - name: Debug paths
+      run: |
+        cd src/CLBM
+        julia debug_paths.jl
+        
     - name: Install Julia dependencies
       run: |
         julia -e 'using Pkg; Pkg.add(["SymPy", "PyPlot", "HDF5", "LaTeXStrings", "SparseArrays", "LinearAlgebra", "Test"])'
@@ -45,33 +50,54 @@ jobs:
       run: |
         cat > src/CLBM/performance_test.jl << 'EOF'
         # Performance test for different problem sizes
-        include("clbm_config.jl")
+        println("Performance Test Results:")
+        println("=" ^ 50)
         
-        # Override configuration for different test cases
+        # Test cases with different configurations
         test_cases = [
             (Q=3, truncation_order=2, n_time=10),
             (Q=3, truncation_order=3, n_time=20),
             (Q=3, truncation_order=4, n_time=10),
         ]
         
-        println("Performance Test Results:")
-        println("=" ^ 50)
-        
         for (i, case) in enumerate(test_cases)
             println("Test Case $i: Q=$(case.Q), truncation_order=$(case.truncation_order), n_time=$(case.n_time)")
             
-            # Update global variables
-            global Q = case.Q
-            global truncation_order = case.truncation_order
-            global n_time = case.n_time
+            # Create a temporary config file for this test case
+            config_backup = read("clbm_config.jl", String)
+            
+            # Create modified config
+            modified_config = replace(config_backup, 
+                r"global Q = \d+" => "global Q = $(case.Q)",
+                r"global truncation_order = \d+" => "global truncation_order = $(case.truncation_order)",
+                r"global n_time = \d+" => "global n_time = $(case.n_time)"
+            )
             
             try
-                # Run the test
-                include("test_sparse_vs_dense.jl")
+                # Write temporary config
+                write("clbm_config_temp.jl", modified_config)
+                
+                # Run test with temporary config
+                success = run(`julia -e "
+                    include(\\\"clbm_config_temp.jl\\\")
+                    include(\\\"unit_tests_minimal.jl\\\")
+                    println(\\\"✅ Test case passed\\\")
+                "`)
+                
+                if success.exitcode != 0
+                    error("Test failed")
+                end
+                
                 println("✅ PASSED")
+                
             catch e
                 println("❌ FAILED: $e")
                 exit(1)
+            finally
+                # Clean up temporary file
+                if isfile("clbm_config_temp.jl")
+                    rm("clbm_config_temp.jl")
+                end
             end
             println()
         end

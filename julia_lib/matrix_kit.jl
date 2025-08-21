@@ -1,3 +1,7 @@
+# Include guard to prevent duplicate loading
+if !@isdefined(MATRIX_KIT_LOADED)
+    global MATRIX_KIT_LOADED = true
+
 using LinearAlgebra
 
 function array_nan(len)
@@ -43,3 +47,5 @@ function cal_matrix_exp(t_arbitrary, C)
     end
     return norm_exp_C
 end
+
+end # MATRIX_KIT_LOADED guard

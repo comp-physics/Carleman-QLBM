@@ -48,6 +48,11 @@ jobs:
         echo "QCFD_HOME=${{ github.workspace }}" >> $GITHUB_ENV
         echo "QCFD_SRC=${{ github.workspace }}/src/" >> $GITHUB_ENV
         
+    - name: Debug paths (for troubleshooting)
+      run: |
+        cd src/CLBM
+        julia debug_paths.jl
+        
     - name: Install Julia dependencies
       run: |
         julia -e 'using Pkg; Pkg.add(["SymPy", "PyPlot", "HDF5", "LaTeXStrings", "SparseArrays", "LinearAlgebra", "Test"])'
