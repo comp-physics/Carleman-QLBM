@@ -49,7 +49,6 @@ function carleman_C_sparse(Q, truncation_order, poly_order, f, omega, tau_value,
     bt = spzeros(C_dim)
     bt[1:Q] = F0
     
-    # FIXED: Build sparse matrix with same overwrite behavior as dense version
     # Use a temporary dense matrix to handle overlaps correctly, then convert to sparse
     C_temp = zeros(C_dim, C_dim)
     
@@ -62,7 +61,6 @@ function carleman_C_sparse(Q, truncation_order, poly_order, f, omega, tau_value,
                 # Get the block matrix using sparse operations
                 A_block_sparse = carleman_transferA_sparse(ind_row, ind_col, Q, f, omega, tau_value, force_factor, w_value, e_value, F0, ngrid)
                 
-                # FIXED: Use overwrite assignment (same as dense version) 
                 # This ensures later blocks overwrite earlier blocks in overlapping regions
                 C_temp[ind_row_C, ind_col_C] = Array(A_block_sparse)
             end
