@@ -258,7 +258,22 @@ end
 function carleman_V(f, truncation_order)
     V = []
     for i = 1:truncation_order
-        V = append!(V, Kron_kth(f, i))
+        if ngrid == 1
+            # Original version for ngrid=1
+            V = append!(V, Kron_kth(f, i))
+        else
+            # For ngrid > 1, we need to expand f to all grid points
+            # Create a vector of length Q*ngrid^2 from the Q-element f
+            f_ngrid = zeros(Q * ngrid^2)
+            # Replicate f at each grid point
+            for grid_idx = 1:ngrid^2
+                start_idx = (grid_idx - 1) * Q + 1
+                end_idx = grid_idx * Q
+                f_ngrid[start_idx:end_idx] = f
+            end
+            # Now take Kronecker powers
+            V = append!(V, Kron_kth(f_ngrid, i))
+        end
     end
     #
     return V

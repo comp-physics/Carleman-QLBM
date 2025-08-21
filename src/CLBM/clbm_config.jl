@@ -12,7 +12,55 @@ global LY = 1
 global LZ = 1
 
 # Grid parameters
-global ngrid = 1
+global ngrid = 2
+
+# Sparse matrix computation control
+# true: Use sparse matrices (recommended for ngrid > 1)
+# false: Use dense matrices (only feasible for small problems)
+global use_sparse = false  # Testing dense mode
+
+# Helper function to get recommended sparse setting
+function get_recommended_sparse_setting(ngrid_val)
+    """
+    Returns recommended sparse setting based on problem size.
+    
+    Args:
+        ngrid_val: Grid size parameter
+        
+    Returns:
+        bool: true if sparse is recommended, false if dense is optimal
+    """
+    if ngrid_val <= 1
+        return false  # Dense is fine and equivalent for small problems
+    else
+        return true   # Sparse essential for larger problems
+    end
+end
+
+# Helper function to validate sparse setting
+function validate_sparse_setting(use_sparse_val, ngrid_val)
+    """
+    Validates sparse setting and provides warnings if needed.
+    
+    Args:
+        use_sparse_val: Current sparse setting
+        ngrid_val: Grid size parameter
+    """
+    recommended = get_recommended_sparse_setting(ngrid_val)
+    
+    if !use_sparse_val && ngrid_val > 1
+        matrix_size = carleman_C_dim(3, 3, ngrid_val)  # Estimate with typical values
+        memory_mb = matrix_size^2 * 8 / 1024^2  # 8 bytes per Float64
+        
+        if memory_mb > 100  # More than 100 MB
+            println("⚠️  WARNING: Dense matrices will require ~$(round(memory_mb, digits=1)) MB")
+            println("   Consider setting use_sparse = true for ngrid = $ngrid_val")
+        end
+    elseif use_sparse_val && ngrid_val == 1
+        println("ℹ️  INFO: Sparse matrices provide minimal benefit for ngrid = 1")
+        println("   Dense matrices are equivalent and may be easier to debug")
+    end
+end
 
 # Forcing parameters
 global force_factor = 0.0
