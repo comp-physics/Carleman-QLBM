@@ -6,7 +6,7 @@ using HDF5
 using PyPlot
 using LaTeXStrings
 
-include("/Users/lixi307/carleman-lbm/LBM/julia/visualization/plot_kit.jl")
+include(QCFD_HOME * "/visualization/plot_kit.jl")
 
 if l_sympy
     using SymPy
@@ -49,7 +49,7 @@ ngrid = LX * LY * LZ
 #delta_alpha_ini = zeros(ngrid)   
 
 
-include(QCFD_HOME * "julia_lib/matrix_kit.jl")
+include(QCFD_HOME * "/julia_lib/matrix_kit.jl")
 include(QCFD_SRC * "LBM/lbm_cons.jl")
 include(QCFD_SRC * "LBM/lbm_const_sym.jl")
 include(QCFD_SRC * "LBM/forcing.jl")

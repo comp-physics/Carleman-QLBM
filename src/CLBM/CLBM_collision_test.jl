@@ -1,7 +1,7 @@
 QCFD_SRC = ENV["QCFD_SRC"]  
 QCFD_HOME = ENV["QCFD_HOME"]  
 include(QCFD_SRC * "CLBM/timeMarching.jl")
-include(QCFD_HOME * "visualization/plot_CLBM_LBM.jl")
+include(QCFD_HOME * "/visualization/plot_CLBM_LBM.jl")
 include(QCFD_SRC * "LBM/f_initial.jl")
 
 
