@@ -7,7 +7,11 @@ include(QCFD_SRC * "LBM/f_initial.jl")
 
 function CLBM_collision_test(Q, omega, f, C, truncation_order, dt, tau_value, e_value, n_time, l_plot)
 #---arbitrary initial condition
-    println("Single point CLBM collision test of the Forets and Pouly Carleman linearization")
+    if ngrid == 1
+        println("Single point CLBM collision test of the Forets and Pouly Carleman linearization")
+    else
+        println("Multi-grid CLBM collision test ($ngrid grid points) of the Forets and Pouly Carleman linearization")
+    end
     u0 = 0.1
     f_ini = f_ini_test(u0)
 
@@ -27,7 +31,11 @@ end
 
 function CLBM_collision_test_sparse(Q, omega, f, truncation_order, dt, tau_value, e_value, n_time, l_plot)
 #---arbitrary initial condition for sparse version
-    println("Single point CLBM collision test using SPARSE Carleman matrix implementation")
+    if ngrid == 1
+        println("Single point CLBM collision test using SPARSE Carleman matrix implementation")
+    else
+        println("Multi-grid CLBM collision test ($ngrid grid points) using SPARSE Carleman matrix implementation")
+    end
     u0 = 0.1
     f_ini = f_ini_test(u0)
 

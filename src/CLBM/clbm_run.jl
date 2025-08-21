@@ -54,11 +54,13 @@ if use_sparse
 else
     println("Using DENSE Carleman matrix implementation (use_sparse=$use_sparse, ngrid=$ngrid)")
     C, bt, F0 = carleman_C(Q, truncation_order, poly_order, f, omega, tau_value, force_factor, w_value, e_value)
-    V = carleman_V(f, truncation_order)
     fT, VT_f, VT = CLBM_collision_test(Q, omega, f, C, truncation_order, dt, tau_value, e_value, n_time, l_plot)
 end
 
 title("CLBM-D1Q3, " * L"\tau=" *string(tau_value)  * L", u_0 = 0.1")
+
+# Ensure the plot is displayed
+show()
 
 lsavef = false
 
