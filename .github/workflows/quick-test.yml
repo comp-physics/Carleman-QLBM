@@ -24,8 +24,12 @@ jobs:
         
     - name: Install system dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y python3-matplotlib
+        if [[ "$RUNNER_OS" == "Linux" ]]; then
+          sudo apt-get update
+          sudo apt-get install -y python3-matplotlib
+        elif [[ "$RUNNER_OS" == "macOS" ]]; then
+          python3 -m pip install --break-system-packages matplotlib
+        fi
         
     - name: Set environment variables
       run: |
@@ -34,7 +38,8 @@ jobs:
         
     - name: Install Julia dependencies
       run: |
-        julia -e 'using Pkg; Pkg.add(["SymPy", "PyPlot", "HDF5", "LaTeXStrings", "SparseArrays", "LinearAlgebra", "Test"])'
+        julia -e 'using Pkg; Pkg.add(["SymPy", "SparseArrays", "LinearAlgebra", "Test"])'
+        # Skip plotting packages for quick test
         
     - name: Quick syntax check
       run: |
@@ -43,24 +48,7 @@ jobs:
         julia -e "include(\"carleman_transferA.jl\"); println(\"✅ carleman_transferA.jl loads successfully\")"
         julia -e "include(\"clbm_config.jl\"); println(\"✅ clbm_config.jl loads successfully\")"
         
-    - name: Fast sparse vs dense test
+    - name: Run minimal unit tests
       run: |
         cd src/CLBM
-        # Create a minimal test version
-        cat > quick_test.jl << 'EOF'
-        # Quick test with minimal parameters
-        include("clbm_config.jl")
-        
-        # Override for speed
-        global n_time = 3
-        global truncation_order = 2
-        
-        try
-            include("test_sparse_vs_dense.jl")
-            println("✅ Quick sparse vs dense test PASSED")
-        catch e
-            println("❌ Quick test FAILED: $e")
-            exit(1)
-        end
-        EOF
-        julia quick_test.jl
+        julia unit_tests_minimal.jl

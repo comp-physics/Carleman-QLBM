@@ -19,18 +19,6 @@ end
 # Load centralized configuration
 include("clbm_config.jl")
 
-<<<<<<< HEAD
-tau_value, n_time = 1. , 100
-LX = 1; LY = 1; LZ = 1;  force_factor = 0.; dt_force_over_lbm = 1.
-ngrid = 2
-=======
-# Alternative configurations (commented out)
->>>>>>> 1757bb1f13973ffe0a978a77b3ec3f7717becffb
-#tau_value, n_time = .51 , 40
-#tau_value, n_time = 1.5 , 200000 # stable for larger than t>=200000
-#tau_value = 1.4 # unstable for larger than t>=200000
-#dt = 1 #2023-10-30/Xiaolong: dt must be one
-
 include(QCFD_SRC * "CLBM/collision_sym.jl")
 include(QCFD_SRC * "CLBM/carleman_transferA.jl")
 

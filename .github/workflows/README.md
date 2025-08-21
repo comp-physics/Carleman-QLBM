@@ -8,10 +8,11 @@ This directory contains automated testing workflows for the CLBM (Carleman Latti
 - **Triggers**: Push/PR to main/master/develop branches
 - **Tests**: Julia 1.9 & 1.10 on Ubuntu & macOS
 - **Coverage**: 
-  - Sparse vs Dense matrix tests
-  - Main CLBM simulation
-  - Unit tests
+  - Sparse vs Dense matrix tests (adaptive on macOS)
+  - Main CLBM simulation (full on Linux, minimal on macOS)
+  - Unit tests (comprehensive on Linux, minimal on macOS)
   - Integration tests
+- **macOS Compatibility**: Uses `--break-system-packages` and adaptive testing to handle Python environment restrictions
 
 ### 2. **Quick Tests (`quick-test.yml`)**
 - **Triggers**: Changes to `src/CLBM/` files
@@ -85,6 +86,20 @@ The CI workflows install these Julia packages automatically:
 Required environment variables:
 - `QCFD_HOME`: Repository root path
 - `QCFD_SRC`: Source directory path (`$QCFD_HOME/src/`)
+
+## macOS Compatibility
+
+### Python Environment Issues
+Modern macOS systems use externally-managed Python environments (PEP 668) which prevent direct `pip install` commands. Our workflows handle this by:
+
+1. **Using `--break-system-packages`**: Safe for CI environments
+2. **Adaptive testing**: Falls back to minimal tests if plotting packages fail
+3. **Platform-specific logic**: Different test strategies for Linux vs macOS
+
+### Test Adaptation
+- **Linux**: Full comprehensive tests with all plotting capabilities
+- **macOS**: Adaptive tests that gracefully handle matplotlib issues
+- **Fallback**: Minimal unit tests ensure core functionality always works
 
 ## Badge Status
 
