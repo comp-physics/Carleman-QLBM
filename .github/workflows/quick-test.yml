@@ -38,7 +38,12 @@ jobs:
         
     - name: Install Julia dependencies
       run: |
-        julia -e 'using Pkg; Pkg.activate("."); Pkg.resolve(); Pkg.instantiate()'
+        julia -e '
+        using Pkg
+        Pkg.activate(".")
+        # Minimal packages for quick test
+        Pkg.add(["SymPy", "SparseArrays", "LinearAlgebra", "Test"])
+        println("✅ Successfully installed minimal Julia packages")'
         # Skip plotting packages for quick test
         
     - name: Quick syntax check
