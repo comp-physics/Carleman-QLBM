@@ -490,6 +490,340 @@ println("Full streaming matrix:")
 println(Matrix(S_interleaved))
 println()
 
+function streaming_operator_D2Q9_interleaved(nx, ny, hx, hy)
+    """
+    Create D2Q9 streaming operator with interleaved velocity organization
+    
+    Distribution function order:
+    [f0_x1y1, f1_x1y1, f2_x1y1, ..., f8_x1y1, f0_x2y1, f1_x2y1, ..., f8_x2y1, 
+     f0_x3y1, ..., f0_x1y2, f1_x1y2, ..., f8_xnyn]
+    
+    Args:
+        nx, ny: number of spatial grid points in x, y directions
+        hx, hy: grid spacing in x, y directions
+        
+    Returns:
+        Single streaming matrix S of size (9*nx*ny, 9*nx*ny)
+    """
+    
+    # D2Q9 velocity vectors
+    e = [
+        [0, 0],   # e0: rest
+        [1, 0],   # e1: +x
+        [0, 1],   # e2: +y  
+        [-1, 0],  # e3: -x
+        [0, -1],  # e4: -y
+        [1, 1],   # e5: +x, +y
+        [-1, 1],  # e6: -x, +y
+        [-1, -1], # e7: -x, -y
+        [1, -1]   # e8: +x, -y
+    ]
+    
+    n_velocities = 9
+    n_spatial = nx * ny
+    n_total = n_velocities * n_spatial
+    
+    # Sparse matrix construction arrays
+    I_idx = Int[]
+    J_idx = Int[]
+    V_vals = Float64[]
+    
+    # Helper function: get global index for velocity vel at position (i,j)
+    global_index(vel_idx, i, j) = ((j-1) * nx + (i-1)) * n_velocities + vel_idx
+    
+    # Construct streaming matrix
+    for j in 1:ny      # Loop over y positions
+        for i in 1:nx  # Loop over x positions
+            for vel in 1:n_velocities  # Loop over velocities at each position
+                
+                row_idx = global_index(vel, i, j)
+                ex, ey = e[vel]  # x and y components of velocity
+                
+                if ex == 0 && ey == 0
+                    # Rest particle: f0 doesn't stream
+                    push!(I_idx, row_idx)
+                    push!(J_idx, row_idx) 
+                    push!(V_vals, 0.0)
+                    
+                else
+                    # Streaming particle: apply central difference
+                    # e⋅∇f = ex * ∂f/∂x + ey * ∂f/∂y
+                    
+                    # x-direction streaming: ex * ∂f/∂x
+                    if ex != 0
+                        if i > 1  # Left neighbor exists
+                            col_idx = global_index(vel, i-1, j)
+                            push!(I_idx, row_idx)
+                            push!(J_idx, col_idx)
+                            push!(V_vals, -ex / (2 * hx))
+                        end
+                        
+                        if i < nx  # Right neighbor exists
+                            col_idx = global_index(vel, i+1, j)
+                            push!(I_idx, row_idx)
+                            push!(J_idx, col_idx)
+                            push!(V_vals, ex / (2 * hx))
+                        end
+                    end
+                    
+                    # y-direction streaming: ey * ∂f/∂y
+                    if ey != 0
+                        if j > 1  # Bottom neighbor exists
+                            col_idx = global_index(vel, i, j-1)
+                            push!(I_idx, row_idx)
+                            push!(J_idx, col_idx)
+                            push!(V_vals, -ey / (2 * hy))
+                        end
+                        
+                        if j < ny  # Top neighbor exists
+                            col_idx = global_index(vel, i, j+1)
+                            push!(I_idx, row_idx)
+                            push!(J_idx, col_idx)
+                            push!(V_vals, ey / (2 * hy))
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    S = sparse(I_idx, J_idx, V_vals, n_total, n_total)
+    return S, e
+end
+
+# Example usage
+nx, ny = 4, 3
+hx, hy = 0.1, 0.1
+S_interleaved_2D, e_velocities_2D = streaming_operator_D2Q9_interleaved(nx, ny, hx, hy)
+
+println("D2Q9 Interleaved Streaming Operator")
+println("=" ^ 50)
+println("Grid size: $nx × $ny")
+println("Grid spacing: hx=$hx, hy=$hy") 
+println("Matrix size: $(size(S_interleaved_2D))")
+println("Non-zeros: $(nnz(S_interleaved_2D))")
+println("Organization: [f0_x1y1, f1_x1y1, ..., f8_x1y1, f0_x2y1, ...]")
+println()
+
+function visualize_D2Q9_structure(nx, ny)
+    """
+    Visualize the indexing structure for D2Q9 interleaved format
+    """
+    
+    println("D2Q9 Interleaved Indexing Structure")
+    println("=" ^ 45)
+    println("Grid: $nx × $ny")
+    println()
+    
+    # Show first few global indices
+    println("Global index mapping (first 3×3 positions):")
+    println("Position (i,j) → Global indices for [f0, f1, f2, ..., f8]")
+    println("-" ^ 60)
+    
+    for j in 1:min(3, ny)
+        for i in 1:min(3, nx)
+            indices = [(((j-1) * nx + (i-1)) * 9 + vel) for vel in 1:9]
+            println("($i,$j) → $(indices)")
+        end
+    end
+    
+    if nx > 3 || ny > 3
+        println("...")
+    end
+    
+    # Show velocity vectors
+    println("\nVelocity vectors:")
+    e = [[0,0], [1,0], [0,1], [-1,0], [0,-1], [1,1], [-1,1], [-1,-1], [1,-1]]
+    for (i, vel) in enumerate(e)
+        println("e$(i-1) = $vel")
+    end
+end
+
+visualize_D2Q9_structure(nx, ny)
+
+function test_D2Q9_interleaved_streaming()
+    """
+    Test the D2Q9 interleaved streaming operator with known functions
+    """
+    
+    nx, ny = 5, 4
+    hx, hy = 1.0, 1.0
+    S, e = streaming_operator_D2Q9_interleaved(nx, ny, hx, hy)
+    
+    println("Testing D2Q9 Interleaved Streaming")
+    println("=" ^ 40)
+    println("Grid: $nx × $ny")
+    
+    # Create test distribution functions
+    n_total = 9 * nx * ny
+    f = zeros(n_total)
+    
+    # Initialize with different test functions for each velocity
+    for j in 1:ny
+        for i in 1:nx
+            x_pos = Float64(i)
+            y_pos = Float64(j)
+            
+            # Different test functions for each velocity
+            for vel in 1:9
+                global_idx = ((j-1) * nx + (i-1)) * 9 + vel
+                
+                if vel == 1      # f0: constant
+                    f[global_idx] = 1.0
+                elseif vel == 2  # f1: linear in x
+                    f[global_idx] = x_pos
+                elseif vel == 3  # f2: linear in y  
+                    f[global_idx] = y_pos
+                elseif vel == 4  # f3: x²
+                    f[global_idx] = x_pos^2
+                elseif vel == 5  # f4: y²
+                    f[global_idx] = y_pos^2
+                elseif vel == 6  # f5: xy
+                    f[global_idx] = x_pos * y_pos
+                else            # f6,f7,f8: more complex functions
+                    f[global_idx] = sin(π * x_pos / nx) * cos(π * y_pos / ny)
+                end
+            end
+        end
+    end
+    
+    # Apply streaming
+    f_streamed = S * f
+    
+    # Display results for a few positions
+    println("\nResults at selected positions:")
+    println("Position | Velocity | Initial | After Streaming | Expected")
+    println("---------|----------|---------|-----------------|----------")
+    
+    test_positions = [(2,2), (3,2), (2,3)]
+    for (i, j) in test_positions
+        for vel in [1, 2, 3]  # Show first 3 velocities
+            global_idx = ((j-1) * nx + (i-1)) * 9 + vel
+            initial_val = f[global_idx]
+            streamed_val = f_streamed[global_idx]
+            
+            # Calculate expected result analytically
+            ex, ey = e[vel]
+            expected = "..."
+            if vel == 1  # Rest particle
+                expected = "0"
+            elseif vel == 2  # e1⋅∇(x) = 1⋅1 = 1
+                expected = "1"
+            elseif vel == 3  # e2⋅∇(y) = 1⋅1 = 1  
+                expected = "1"
+            end
+            
+            println("($i,$j)    | f$(vel-1)      | $(round(initial_val, digits=2))    | $(round(streamed_val, digits=3))        | $expected")
+        end
+        println("---------|----------|---------|-----------------|----------")
+    end
+    
+    return f, f_streamed
+end
+
+f_initial_2D, f_result_2D = test_D2Q9_interleaved_streaming()
+
+function extract_velocities_at_position_2D(f_interleaved, i, j, nx, ny)
+    """
+    Extract all 9 velocities at position (i,j)
+    """
+    start_idx = ((j-1) * nx + (i-1)) * 9 + 1
+    return f_interleaved[start_idx:start_idx+8]
+end
+
+function extract_velocity_field_2D(f_interleaved, vel, nx, ny)
+    """
+    Extract specific velocity component at all positions as 2D array
+    """
+    result = zeros(nx, ny)
+    for j in 1:ny
+        for i in 1:nx
+            global_idx = ((j-1) * nx + (i-1)) * 9 + vel
+            result[i, j] = f_interleaved[global_idx]
+        end
+    end
+    return result
+end
+
+function set_velocity_at_position_2D!(f_interleaved, i, j, vel, value, nx)
+    """
+    Set specific velocity component at position (i,j)
+    """
+    global_idx = ((j-1) * nx + (i-1)) * 9 + vel
+    f_interleaved[global_idx] = value
+end
+
+function reshape_to_grid_format(f_interleaved, nx, ny)
+    """
+    Reshape interleaved format to [nx, ny, 9] array for visualization
+    """
+    result = zeros(nx, ny, 9)
+    for j in 1:ny
+        for i in 1:nx
+            for vel in 1:9
+                global_idx = ((j-1) * nx + (i-1)) * 9 + vel
+                result[i, j, vel] = f_interleaved[global_idx]
+            end
+        end
+    end
+    return result
+end
+
+# Demonstration of utility functions
+println("\nUtility Functions Demo")
+println("=" ^ 25)
+
+nx_demo, ny_demo = 3, 3
+f_demo = collect(1.0:(9*nx_demo*ny_demo))  # Sequential numbering
+
+println("Demo vector length: $(length(f_demo))")
+println("Grid size: $nx_demo × $ny_demo")
+println()
+
+# Extract velocities at position (2,2)
+velocities_22 = extract_velocities_at_position_2D(f_demo, 2, 2, nx_demo, ny_demo)
+println("Velocities at position (2,2): $velocities_22")
+
+# Extract velocity field for f1 (vel=2)
+vel_field = extract_velocity_field_2D(f_demo, 2, nx_demo, ny_demo)
+println("Velocity field f1:")
+println(vel_field')
+
+# Reshape to grid format
+grid_format = reshape_to_grid_format(f_demo, nx_demo, ny_demo)
+println("Shape of grid format: $(size(grid_format))")
+
+function performance_analysis_D2Q9()
+    """
+    Analyze performance for different grid sizes
+    """
+    
+    grid_sizes = [(10,10), (20,20), (30,30), (50,50)]
+    
+    println("D2Q9 Performance Analysis")
+    println("=" ^ 30)
+    println("Grid Size | Assembly Time | Matrix Size | Non-zeros | Memory (MB)")
+    println("----------|---------------|-------------|-----------|------------")
+    
+    for (nx, ny) in grid_sizes
+        hx, hy = 1.0/nx, 1.0/ny
+        
+        # Time assembly
+        t = @elapsed S, e = streaming_operator_D2Q9_interleaved(nx, ny, hx, hy)
+        
+        # Calculate memory usage (rough estimate)
+        memory_mb = nnz(S) * 16 / (1024^2)  # 16 bytes per entry (8 for int indices, 8 for float value)
+        
+        println("$(nx)×$(ny)     | $(round(t*1000, digits=1)) ms        | $(size(S)[1])×$(size(S)[2]) | $(nnz(S))     | $(round(memory_mb, digits=2))")
+        
+        if nx >= 50  # Don't test larger sizes in demo
+            break
+        end
+    end
+end
+
+performance_analysis_D2Q9()
+
 # Function to create the 1D LBE streaming matrix
 function streaming_matrix_LBE(n::Int)
     # Define the base blocks for f2 (no movement), f3 (right movement), f1 (left movement)
