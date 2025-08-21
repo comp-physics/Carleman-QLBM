@@ -67,7 +67,7 @@ jobs:
         
     - name: Install Julia dependencies
       run: |
-        julia -e 'using Pkg; Pkg.activate("."); Pkg.instantiate()'
+        julia -e 'using Pkg; Pkg.activate("."); Pkg.resolve(); Pkg.instantiate()'
         
     - name: Run Sparse vs Dense Tests
       working-directory: src/CLBM
