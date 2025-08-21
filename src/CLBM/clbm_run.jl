@@ -20,7 +20,7 @@ end
 
 tau_value, n_time = 1. , 100
 LX = 1; LY = 1; LZ = 1;  force_factor = 0.; dt_force_over_lbm = 1.
-ngrid = 1
+ngrid = 2
 #tau_value, n_time = .51 , 40
 #tau_value, n_time = 1.5 , 200000 # stable for larger than t>=200000
 #tau_value = 1.4 # unstable for larger than t>=200000
