@@ -16,17 +16,14 @@ else
     using Symbolics
 end
 
-# symbolic calculation does not work for Kronecker product because it cannot distinguish f1f2 and f2f1
+# Load centralized configuration
+include("clbm_config.jl")
 
-tau_value, n_time = 1. , 100
-LX = 1; LY = 1; LZ = 1;  force_factor = 0.; dt_force_over_lbm = 1.
-ngrid = 1
+# Alternative configurations (commented out)
 #tau_value, n_time = .51 , 40
 #tau_value, n_time = 1.5 , 200000 # stable for larger than t>=200000
 #tau_value = 1.4 # unstable for larger than t>=200000
 #dt = 1 #2023-10-30/Xiaolong: dt must be one
-dt = tau_value ./ 10 #2023-10-30/Xiaolong: dt must be one in LBM. This is just for testing the LBM-collision without streaming
-lscale_kvector_tobox = false
 
 include(QCFD_SRC * "CLBM/collision_sym.jl")
 include(QCFD_SRC * "CLBM/carleman_transferA.jl")
@@ -39,26 +36,14 @@ include(QCFD_SRC * "LBM/lbm_const_sym.jl")
 include(QCFD_SRC * "CLBM/CLBM_collision_test.jl")
 include(QCFD_SRC * "LBM/forcing.jl")
 
-Q = 3
-D = 1
+# Set up LBM constants (updates global w_value, e_value)
+w, e, w_val, e_val = lbm_const_sym()
+global w_value = w_val
+global e_value = e_val
 
-w, e, w_value, e_value = lbm_const_sym()
 c = 1
-#rho = 1
-rho0 = 1.0001 # Any arbitrary flow
-lTaylor = true
-lorder2 = false
-l_ini_feq = false
-
-
 
 f, omega, u, rho = collision(Q, D, w, e, rho0, lTaylor, lorder2)
-
-poly_order = 3 
-
-#truncation_order = 4
-truncation_order = 3
-
 
 l_plot = true
 
