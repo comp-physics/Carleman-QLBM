@@ -175,6 +175,7 @@ end
 
 #
 function timeMarching_collision_CLBM(omega, f, tau_value, Q, C, truncation_order, e_value, dt, f_ini, n_time, l_plot)
+    # replace f_ini with a well-developed snapshot of stochastic D1Q3 LBM: dt1_force0.00025_tau0.503_Nx16_NT50000010.h5.
     V0 = carleman_V(f_ini, truncation_order)
     V0 = Float64.(V0)
 
