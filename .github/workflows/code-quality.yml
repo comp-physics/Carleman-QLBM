@@ -25,7 +25,7 @@ jobs:
         
     - name: Install Julia dependencies
       run: |
-        julia -e 'using Pkg; Pkg.add(["SymPy", "SparseArrays", "LinearAlgebra", "Test"])'
+        julia -e 'using Pkg; Pkg.activate("."); Pkg.resolve(); Pkg.instantiate()'
         
     - name: Check for syntax errors
       run: |
@@ -60,9 +60,9 @@ jobs:
         fi
         
     - name: Check memory efficiency
+      working-directory: src/CLBM
       run: |
-        cd src/CLBM
-        julia -e "
+        julia --project=../.. -e "
         include(\"clbm_config.jl\")
         
         # Test with small problem size to ensure no memory leaks

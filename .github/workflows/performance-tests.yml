@@ -38,13 +38,13 @@ jobs:
         echo "QCFD_SRC=${{ github.workspace }}/src/" >> $GITHUB_ENV
         
     - name: Debug paths
+      working-directory: src/CLBM
       run: |
-        cd src/CLBM
         julia debug_paths.jl
         
     - name: Install Julia dependencies
       run: |
-        julia -e 'using Pkg; Pkg.add(["SymPy", "PyPlot", "HDF5", "LaTeXStrings", "SparseArrays", "LinearAlgebra", "Test"])'
+        julia -e 'using Pkg; Pkg.activate("."); Pkg.resolve(); Pkg.instantiate()'
         
     - name: Create performance test script
       run: |
@@ -78,10 +78,10 @@ jobs:
                 write("clbm_config_temp.jl", modified_config)
                 
                 # Run test with temporary config
-                success = run(`julia -e "
-                    include(\\\"clbm_config_temp.jl\\\")
-                    include(\\\"unit_tests_minimal.jl\\\")
-                    println(\\\"✅ Test case passed\\\")
+                success = run(`julia --project=../.. -e "
+                    include(\"clbm_config_temp.jl\")
+                    include(\"unit_tests_minimal.jl\")
+                    println(\"✅ Test case passed\")
                 "`)
                 
                 if success.exitcode != 0
@@ -106,6 +106,6 @@ jobs:
         EOF
         
     - name: Run performance tests
+      working-directory: src/CLBM
       run: |
-        cd src/CLBM
-        julia performance_test.jl
+        julia --project=../.. performance_test.jl

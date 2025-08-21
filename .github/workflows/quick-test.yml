@@ -38,17 +38,17 @@ jobs:
         
     - name: Install Julia dependencies
       run: |
-        julia -e 'using Pkg; Pkg.add(["SymPy", "SparseArrays", "LinearAlgebra", "Test"])'
+        julia -e 'using Pkg; Pkg.activate("."); Pkg.resolve(); Pkg.instantiate()'
         # Skip plotting packages for quick test
         
     - name: Quick syntax check
+      working-directory: src/CLBM
       run: |
-        cd src/CLBM
-        julia -e "include(\"timeMarching.jl\"); println(\"✅ timeMarching.jl loads successfully\")"
-        julia -e "include(\"carleman_transferA.jl\"); println(\"✅ carleman_transferA.jl loads successfully\")"
-        julia -e "include(\"clbm_config.jl\"); println(\"✅ clbm_config.jl loads successfully\")"
+        julia --project=../.. -e "include(\"timeMarching.jl\"); println(\"✅ timeMarching.jl loads successfully\")"
+        julia --project=../.. -e "include(\"carleman_transferA.jl\"); println(\"✅ carleman_transferA.jl loads successfully\")"
+        julia --project=../.. -e "include(\"clbm_config.jl\"); println(\"✅ clbm_config.jl loads successfully\")"
         
     - name: Run minimal unit tests
+      working-directory: src/CLBM
       run: |
-        cd src/CLBM
-        julia unit_tests_minimal.jl
+        julia --project=../.. unit_tests_minimal.jl
