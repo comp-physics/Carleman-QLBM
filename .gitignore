@@ -1,2 +1,35 @@
-julia_lib/gr-temp
+# Julia
+Manifest.toml
+*.jl.cov
+*.jl.*.cov
+*.jl.mem
+deps/deps.jl
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# macOS
 .DS_Store
+
+# Temporary files
+*.tmp
+*.log
+
+# Output files
+*.h5
+*.hdf5
+*.dat
+*.out
+
+# Plots and figures
+*.png
+*.pdf
+*.svg
+*.eps
+
+# Backup files
+*~
+*.bak

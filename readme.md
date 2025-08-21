@@ -14,6 +14,6 @@ then
 
 ```julia
 julia> using Pkg
-julia> Pkg.activate("julia_sym_math")
+julia> Pkg.activate("../..")  # Activate the main project environment from src/CLBM
 julia> include("clbm_run.jl")       
 ```

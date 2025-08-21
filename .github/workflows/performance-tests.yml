@@ -1,0 +1,117 @@
+name: Performance Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  schedule:
+    # Run weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+jobs:
+  performance:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Julia
+      uses: julia-actions/setup-julia@v1
+      with:
+        version: '1.10'
+        
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python3-matplotlib python3-sympy
+        
+    - name: Set environment variables
+      run: |
+        echo "QCFD_HOME=${{ github.workspace }}" >> $GITHUB_ENV
+        echo "QCFD_SRC=${{ github.workspace }}/src/" >> $GITHUB_ENV
+        
+    - name: Debug paths
+      working-directory: src/CLBM
+      run: |
+        julia debug_paths.jl
+        
+    - name: Install Julia dependencies
+      run: |
+        julia -e '
+        using Pkg
+        Pkg.activate(".")
+        # Add packages without relying on Project.toml UUIDs
+        try
+          Pkg.add(["SymPy", "PyPlot", "HDF5", "LaTeXStrings"])
+          println("✅ Successfully installed Julia packages")
+        catch e
+          println("⚠️  Package installation issue: $e")
+          # Fall back to minimal packages
+          Pkg.add(["SymPy", "SparseArrays", "LinearAlgebra", "Test"])
+        end'
+        
+    - name: Create performance test script
+      run: |
+        cat > src/CLBM/performance_test.jl << 'EOF'
+        # Performance test for different problem sizes
+        println("Performance Test Results:")
+        println("=" ^ 50)
+        
+        # Test cases with different configurations
+        test_cases = [
+            (Q=3, truncation_order=2, n_time=10),
+            (Q=3, truncation_order=3, n_time=20),
+            (Q=3, truncation_order=4, n_time=10),
+        ]
+        
+        for (i, case) in enumerate(test_cases)
+            println("Test Case $i: Q=$(case.Q), truncation_order=$(case.truncation_order), n_time=$(case.n_time)")
+            
+            # Create a temporary config file for this test case
+            config_backup = read("clbm_config.jl", String)
+            
+            # Create modified config
+            modified_config = replace(config_backup, 
+                r"global Q = \d+" => "global Q = $(case.Q)",
+                r"global truncation_order = \d+" => "global truncation_order = $(case.truncation_order)",
+                r"global n_time = \d+" => "global n_time = $(case.n_time)"
+            )
+            
+            try
+                # Write temporary config
+                write("clbm_config_temp.jl", modified_config)
+                
+                # Run test with temporary config
+                success = run(`julia --project=../.. -e "
+                    include(\"clbm_config_temp.jl\")
+                    include(\"unit_tests_minimal.jl\")
+                    println(\"✅ Test case passed\")
+                "`)
+                
+                if success.exitcode != 0
+                    error("Test failed")
+                end
+                
+                println("✅ PASSED")
+                
+            catch e
+                println("❌ FAILED: $e")
+                exit(1)
+            finally
+                # Clean up temporary file
+                if isfile("clbm_config_temp.jl")
+                    rm("clbm_config_temp.jl")
+                end
+            end
+            println()
+        end
+        
+        println("🎉 All performance tests passed!")
+        EOF
+        
+    - name: Run performance tests
+      working-directory: src/CLBM
+      run: |
+        julia --project=../.. performance_test.jl

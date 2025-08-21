@@ -28,15 +28,21 @@ function timeMarching_collision(omega, f, f_ini, tau_value, e_value, dt,  n_time
     return fT, uT
 end
 
-# Sparse version of carleman_C function
+# Optimized sparse version of carleman_C function
 function carleman_C_sparse(Q, truncation_order, poly_order, f, omega, tau_value, force_factor, w_value, e_value)
     ncol_zero_ini = 0 # do NOT change this.
     C_dim = carleman_C_dim(Q, truncation_order, ngrid)
     
-    # Initialize arrays for sparse matrix construction
-    I_indices = Int[]
-    J_indices = Int[]
-    values = Float64[]
+    # OPTIMIZATION: Estimate non-zero elements for better memory pre-allocation
+    estimated_nnz = estimate_carleman_nnz(Q, truncation_order, poly_order, ngrid)
+    
+    # Pre-allocate arrays with estimated size to reduce reallocations
+    I_indices = Vector{Int}()
+    J_indices = Vector{Int}()
+    values = Vector{Float64}()
+    sizehint!(I_indices, estimated_nnz)
+    sizehint!(J_indices, estimated_nnz)
+    sizehint!(values, estimated_nnz)
     
     #--b(t) term---
     F0 = F0_random_forcing(Q, force_factor, w_value, e_value)
@@ -55,14 +61,23 @@ function carleman_C_sparse(Q, truncation_order, poly_order, f, omega, tau_value,
                 # Extract indices/values from sparse matrix
                 block_I, block_J, block_vals = findnz(A_block_sparse)
                 
-                # Adjust indices to global matrix coordinates
-                global_I = block_I .+ (first(ind_row_C) - 1)
-                global_J = block_J .+ (first(ind_col_C) - 1)
+                # OPTIMIZATION: Direct index adjustment to avoid temporary array creation
+                row_offset = first(ind_row_C) - 1
+                col_offset = first(ind_col_C) - 1
                 
-                # Append to global arrays
-                append!(I_indices, global_I)
-                append!(J_indices, global_J)
-                append!(values, block_vals)
+                # OPTIMIZATION: Reserve space and append efficiently
+                n_new = length(block_I)
+                current_size = length(I_indices)
+                resize!(I_indices, current_size + n_new)
+                resize!(J_indices, current_size + n_new)
+                resize!(values, current_size + n_new)
+                
+                # Direct assignment instead of creating temporary arrays
+                @inbounds for k = 1:n_new
+                    I_indices[current_size + k] = block_I[k] + row_offset
+                    J_indices[current_size + k] = block_J[k] + col_offset
+                    values[current_size + k] = block_vals[k]
+                end
             end
         end
     end
@@ -71,6 +86,41 @@ function carleman_C_sparse(Q, truncation_order, poly_order, f, omega, tau_value,
     C_sparse = sparse(I_indices, J_indices, values, C_dim, C_dim)
     
     return C_sparse, bt, F0
+end
+
+# OPTIMIZATION: Function to estimate non-zero elements for better memory allocation
+function estimate_carleman_nnz(Q, truncation_order, poly_order, ngrid)
+    """
+    Estimate the number of non-zero elements in the Carleman matrix for better memory pre-allocation.
+    This reduces the number of reallocations during sparse matrix assembly.
+    """
+    total_blocks = 0
+    
+    # Count the number of active blocks based on sparsity pattern
+    for ind_row = 1:truncation_order
+        for ind_col = 1:truncation_order
+            if ind_col >= ind_row - 1 && ind_col <= ind_row + poly_order - 1
+                total_blocks += 1
+            end
+        end
+    end
+    
+    # Estimate average non-zeros per block
+    # For Kronecker products of sparse matrices, density typically scales as:
+    # - Q^i matrices have roughly Q*i non-zeros for collision operators
+    # - Identity kronecker products maintain sparsity well
+    if ngrid == 1
+        # For ngrid=1, blocks are roughly Q^i × Q^j in size
+        avg_block_nnz = Q * truncation_order * 2  # Conservative estimate
+    else
+        # For ngrid>1, blocks grow as (Q*ngrid^2)^i but sparsity increases
+        avg_block_nnz = Q * ngrid * truncation_order  # More conservative for larger grids
+    end
+    
+    estimated_nnz = total_blocks * avg_block_nnz
+    
+    # Add 20% buffer to account for estimation uncertainty
+    return Int(ceil(estimated_nnz * 1.2))
 end
 
 #
@@ -121,6 +171,9 @@ function timeMarching_collision_CLBM_sparse(omega, f, tau_value, Q, truncation_o
     V0 = carleman_V(f_ini, truncation_order)
     V0 = Float64.(V0)
 
+    # FIXED: Build sparse matrix ONCE outside the time loop for efficiency
+    C_sparse, bt, F0 = carleman_C_sparse(Q, truncation_order, poly_order, f, omega, tau_value, force_factor, w_value, e_value)
+
     # Initialize with proper size based on V0 length
     VT = zeros(length(V0), n_time)
     VT[:, 1] = V0
@@ -140,9 +193,7 @@ function timeMarching_collision_CLBM_sparse(omega, f, tau_value, Q, truncation_o
     
     #---time marching---
     for nt = 2:n_time
-        # Use sparse matrix version
-        C_sparse, bt, F0 = carleman_C_sparse(Q, truncation_order, poly_order, f, omega, tau_value, force_factor, w_value, e_value)
-        
+        # FIXED: Use pre-computed sparse matrix - no reconstruction needed
         # Sparse matrix-vector multiplication
         VT[:, nt] = (C_sparse * VT[:, nt - 1] + bt) .* dt .+ VT[:, nt - 1]
         _, uT[nt] = lbm_u(e_value, VT[1:Q, nt]) 
@@ -165,39 +216,45 @@ end
 # ========================================================================
 
 function Kron_kth_sparse(ff, k)
-    """Sparse version of Kron_kth that builds Kronecker powers efficiently"""
     if k == 1
-        return sparse(ff)
+        return issparse(ff) ? ff : sparse(ff)
     else
-        fk = sparse(ff)
+        # Ensure input is sparse from the start
+        fk = issparse(ff) ? ff : sparse(ff)
         for i = 1:k-1
-            fk = kron(fk, sparse(ff))
+            # Both operands are already sparse, no need for conversions
+            fk = kron(fk, fk)
         end
         return fk
     end
 end
 
 function Kron_kth_identity_sparse(Fj, i, rth, Q)
-    """Sparse version of Kron_kth_identity using sparse identity matrices"""
-    identity_sparse = sparse(1.0I, Q, Q)
+    if !@isdefined(cached_sparse_identity) || size(cached_sparse_identity, 1) != Q
+        global cached_sparse_identity = sparse(1.0I, Q, Q)
+    end
+    identity_sparse = cached_sparse_identity
     
     if rth > i
         error("rth must be smaller than i")
     end
     
     if i == 1
-        return sparse(Fj)
+        return issparse(Fj) ? Fj : sparse(Fj)
     else
+        # Ensure Fj is sparse once at the beginning
+        Fj_sparse = issparse(Fj) ? Fj : sparse(Fj)
+        
         if rth == 1
             imatrix_right = Kron_kth_sparse(identity_sparse, i - rth)
-            return kron(sparse(Fj), imatrix_right)
+            return kron(Fj_sparse, imatrix_right)
         elseif rth == i
             imatrix_left = Kron_kth_sparse(identity_sparse, rth - 1)
-            return kron(imatrix_left, sparse(Fj))
+            return kron(imatrix_left, Fj_sparse)
         else
             imatrix_left = Kron_kth_sparse(identity_sparse, rth - 1)
             imatrix_right = Kron_kth_sparse(identity_sparse, i - rth)
-            A_sub = kron(imatrix_left, sparse(Fj))
+            A_sub = kron(imatrix_left, Fj_sparse)
             return kron(A_sub, imatrix_right)
         end
     end

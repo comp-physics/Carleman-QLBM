@@ -3,7 +3,7 @@
 
 # Global simulation parameters
 global tau_value = 1.0
-global n_time = 100
+global n_time = 10
 global dt = tau_value / 10
 
 # Domain parameters  

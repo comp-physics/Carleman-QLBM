@@ -1,0 +1,59 @@
+name: Quick Tests
+
+on:
+  push:
+    paths:
+      - 'src/CLBM/**'
+      - '.github/workflows/**'
+  pull_request:
+    paths:
+      - 'src/CLBM/**'
+      - '.github/workflows/**'
+
+jobs:
+  quick-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Julia
+      uses: julia-actions/setup-julia@v1
+      with:
+        version: '1.10'
+        
+    - name: Install system dependencies
+      run: |
+        if [[ "$RUNNER_OS" == "Linux" ]]; then
+          sudo apt-get update
+          sudo apt-get install -y python3-matplotlib python3-sympy
+        elif [[ "$RUNNER_OS" == "macOS" ]]; then
+          python3 -m pip install --break-system-packages matplotlib sympy
+        fi
+        
+    - name: Set environment variables
+      run: |
+        echo "QCFD_HOME=${{ github.workspace }}" >> $GITHUB_ENV
+        echo "QCFD_SRC=${{ github.workspace }}/src/" >> $GITHUB_ENV
+        
+    - name: Install Julia dependencies
+      run: |
+        julia -e '
+        using Pkg
+        Pkg.activate(".")
+        # Minimal packages for quick test
+        Pkg.add(["SymPy", "SparseArrays", "LinearAlgebra", "Test"])
+        println("✅ Successfully installed minimal Julia packages")'
+        # Skip plotting packages for quick test
+        
+    - name: Quick syntax check
+      working-directory: src/CLBM
+      run: |
+        julia --project=../.. -e "include(\"timeMarching.jl\"); println(\"✅ timeMarching.jl loads successfully\")"
+        julia --project=../.. -e "include(\"carleman_transferA.jl\"); println(\"✅ carleman_transferA.jl loads successfully\")"
+        julia --project=../.. -e "include(\"clbm_config.jl\"); println(\"✅ clbm_config.jl loads successfully\")"
+        
+    - name: Run minimal unit tests
+      working-directory: src/CLBM
+      run: |
+        julia --project=../.. unit_tests_minimal.jl

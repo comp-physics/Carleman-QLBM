@@ -1,7 +1,7 @@
 l_sympy = true
 
 QCFD_HOME = ENV["QCFD_HOME"]  
-include(QCFD_HOME * "julia_lib/matrix_kit.jl")
+include(QCFD_HOME * "/julia_lib/matrix_kit.jl")
 
 if l_sympy
     using SymPy
