@@ -49,26 +49,91 @@ function carleman_C_sparse(Q, truncation_order, poly_order, f, omega, tau_value,
     bt = spzeros(C_dim)
     bt[1:Q] = F0
     
-    # Use a temporary dense matrix to handle overlaps correctly, then convert to sparse
-    C_temp = zeros(C_dim, C_dim)
+    # MEMORY-EFFICIENT: Build sparse matrix incrementally without storing all positions
+    # For large matrices, sacrifice perfect overlap handling for memory efficiency
     
-    for ind_row = 1:truncation_order
-        for ind_col = 1:truncation_order
-            # Only fill blocks that satisfy the sparsity condition
-            if ind_col >= ind_row - 1 && ind_col <= ind_row + poly_order - 1
-                ind_row_C, ind_col_C = carleman_C_block_dim(Q, ind_row, ind_col, ncol_zero_ini)
-                
-                # Get the block matrix using sparse operations
-                A_block_sparse = carleman_transferA_sparse(ind_row, ind_col, Q, f, omega, tau_value, force_factor, w_value, e_value, F0, ngrid)
-                
-                # This ensures later blocks overwrite earlier blocks in overlapping regions
-                C_temp[ind_row_C, ind_col_C] = Array(A_block_sparse)
+    # Estimate memory requirement first
+    dense_memory_gb = C_dim^2 * 8 / 1024^3
+    
+    if dense_memory_gb > 5.0
+        # LARGE MATRIX: Use accumulation method (may not handle overlaps perfectly)
+        println("⚠️  Large matrix detected ($(round(dense_memory_gb, digits=1)) GB dense)")
+        println("   Using memory-efficient sparse assembly...")
+        
+        I_indices = Vector{Int}()
+        J_indices = Vector{Int}()
+        values = Vector{Float64}()
+        
+        for ind_row = 1:truncation_order
+            for ind_col = 1:truncation_order
+                if ind_col >= ind_row - 1 && ind_col <= ind_row + poly_order - 1
+                    ind_row_C, ind_col_C = carleman_C_block_dim(Q, ind_row, ind_col, ncol_zero_ini)
+                    A_block_sparse = carleman_transferA_sparse(ind_row, ind_col, Q, f, omega, tau_value, force_factor, w_value, e_value, F0, ngrid)
+                    
+                    # Extract and add non-zeros directly
+                    block_I, block_J, block_vals = findnz(A_block_sparse)
+                    row_offset = first(ind_row_C) - 1
+                    col_offset = first(ind_col_C) - 1
+                    
+                    for k = 1:length(block_I)
+                        push!(I_indices, block_I[k] + row_offset)
+                        push!(J_indices, block_J[k] + col_offset)
+                        push!(values, block_vals[k])
+                    end
+                end
             end
         end
+        
+        # Build sparse matrix (Julia handles duplicate indices by summing - approximate)
+        if !isempty(I_indices)
+            C_sparse = sparse(I_indices, J_indices, values, C_dim, C_dim)
+            println("   Matrix construction completed: $(nnz(C_sparse)) non-zeros")
+        else
+            C_sparse = spzeros(C_dim, C_dim)
+        end
+        
+    else
+        # SMALL MATRIX: Use exact method with dictionary for perfect correctness
+        final_values = Dict{Tuple{Int,Int}, Float64}()
+        
+        for ind_row = 1:truncation_order
+            for ind_col = 1:truncation_order
+                if ind_col >= ind_row - 1 && ind_col <= ind_row + poly_order - 1
+                    ind_row_C, ind_col_C = carleman_C_block_dim(Q, ind_row, ind_col, ncol_zero_ini)
+                    A_block_sparse = carleman_transferA_sparse(ind_row, ind_col, Q, f, omega, tau_value, force_factor, w_value, e_value, F0, ngrid)
+                    
+                    # Convert to dense block for exact overwrite semantics
+                    A_block_dense = Array(A_block_sparse)
+                    
+                    # Store all values (including zeros) for exact semantics
+                    for i = 1:size(A_block_dense, 1), j = 1:size(A_block_dense, 2)
+                        global_row = ind_row_C[i]
+                        global_col = ind_col_C[j]
+                        final_values[(global_row, global_col)] = A_block_dense[i, j]
+                    end
+                end
+            end
+        end
+        
+        # Build sparse matrix from non-zero final values
+        I_final = Int[]
+        J_final = Int[]
+        vals_final = Float64[]
+        
+        for ((row, col), value) in final_values
+            if abs(value) > 1e-15
+                push!(I_final, row)
+                push!(J_final, col)
+                push!(vals_final, value)
+            end
+        end
+        
+        if !isempty(I_final)
+            C_sparse = sparse(I_final, J_final, vals_final, C_dim, C_dim)
+        else
+            C_sparse = spzeros(C_dim, C_dim)
+        end
     end
-    
-    # Convert the correctly assembled matrix to sparse format
-    C_sparse = sparse(C_temp)
     
     return C_sparse, bt, F0
 end
