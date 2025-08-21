@@ -48,35 +48,47 @@ jobs:
         echo "QCFD_HOME=${{ github.workspace }}" >> $GITHUB_ENV
         echo "QCFD_SRC=${{ github.workspace }}/src/" >> $GITHUB_ENV
         
-    - name: Debug paths (for troubleshooting)
+    - name: Verify environment setup
       run: |
-        cd src/CLBM
+        echo "QCFD_HOME=$QCFD_HOME"
+        echo "QCFD_SRC=$QCFD_SRC"
+        ls -la $QCFD_HOME
+        ls -la $QCFD_SRC
+        
+    - name: Debug paths (for troubleshooting)
+      working-directory: src/CLBM
+      run: |
         julia debug_paths.jl
+        
+    - name: Validate path fix
+      working-directory: src/CLBM
+      run: |
+        julia validate_path_fix.jl
         
     - name: Install Julia dependencies
       run: |
-        julia -e 'using Pkg; Pkg.add(["SymPy", "PyPlot", "HDF5", "LaTeXStrings", "SparseArrays", "LinearAlgebra", "Test"])'
+        julia -e 'using Pkg; Pkg.activate("."); Pkg.instantiate()'
         
     - name: Run Sparse vs Dense Tests
+      working-directory: src/CLBM
       run: |
-        cd src/CLBM
         if [[ "$RUNNER_OS" == "Linux" ]]; then
           # Full tests on Linux where matplotlib is more reliable
-          julia test_sparse_vs_dense.jl
+          julia --project=../.. test_sparse_vs_dense.jl
         else
           # Adaptive tests on macOS to handle potential matplotlib issues
-          julia run_ci_tests.jl
+          julia --project=../.. run_ci_tests.jl
         fi
         
     - name: Run Main CLBM Simulation
+      working-directory: src/CLBM
       run: |
-        cd src/CLBM
         if [[ "$RUNNER_OS" == "Linux" ]]; then
           # Full simulation on Linux
-          julia clbm_run.jl
+          julia --project=../.. clbm_run.jl
         else
           # Skip simulation on macOS if plotting issues, just test core functionality
-          julia -e "
+          julia --project=../.. -e "
             include(\"clbm_config.jl\")
             global n_time = 5  # Minimal simulation
             global l_plot = false  # Disable plotting
@@ -91,13 +103,13 @@ jobs:
         fi
         
     - name: Run Quick Test Runner
+      working-directory: src/CLBM
       run: |
-        cd src/CLBM
         if [[ "$RUNNER_OS" == "Linux" ]]; then
-          julia run_sparse_test.jl
+          julia --project=../.. run_sparse_test.jl
         else
           # For macOS, just verify the test runner exists and can load
-          julia -e "
+          julia --project=../.. -e "
             try
               include(\"run_sparse_test.jl\")
               println(\"✅ Test runner completed\")
@@ -109,11 +121,11 @@ jobs:
         fi
         
     - name: Run Unit Tests
+      working-directory: src/CLBM
       run: |
-        cd src/CLBM
         if [[ "$RUNNER_OS" == "Linux" ]]; then
-          julia unit_tests.jl
+          julia --project=../.. unit_tests.jl
         else
           # Use minimal unit tests on macOS to avoid plotting dependencies
-          julia unit_tests_minimal.jl
+          julia --project=../.. unit_tests_minimal.jl
         fi
