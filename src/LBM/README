@@ -1,0 +1,33 @@
+Test with LX = LY = 64 and NT = 10000
+
+1. Parallel with Thread 
+
+32 CPUs on Deception
+1742.852860 seconds (1.63 G allocations: 108.434 GiB, 0.91% gc time, 0.49% compilation time)
+thread_lbm_D2Q9_randomForce.jl
+
+4 CPUs on MAX2
+215.497218 seconds (11.61 G allocations: 322.311 GiB, 10.77% gc time, 2.26% compilation time: <1% of which was recompilation)
+
+2. Parallel with @sync
+
+4 CPUs on MAX2
+330.003496 seconds (1.54 G allocations: 85.980 GiB, 1.73% gc time, 1.04% compilation time: <1% of which was recompilation)
+
+sync_lbm_D2Q9_randomForce_parallel.jl
+
+3. Serial code
+448.459786 seconds (12.47 G allocations: 345.127 GiB, 5.12% gc time, 0.61% compilation time: <1% of which was recompilation)
+
+*  tau = 0.503, NT = 1000000, LX = 64, force_factor = 0.002
+
+42385.234016 seconds (1.25 T allocations: 33.641 TiB, 4.76% gc time, 0.01% compilation time: <1% of which was recompilation)
+
+* 4 CPUs
+  include("/Users/lixi307/QCFD/src/LBM/lbm_D2Q9_randomForce_parallel_chunk_sc.jl")
+tau = 1.0, NT = 1000000, LX = 64, force_factor = 0.002
+17622.854742 seconds (167.07 G allocations: 9.000 TiB, 2.64% gc time, 0.03% compilation time: <1% of which was recompilation)
+
+* 8 CPUs, Poiseuille
+tau = 0.503, NT = 1000000, LX = 64, force_factor = 0.002
+12452.456332 seconds (7.86 G allocations: 2.746 TiB, 0.94% gc time, 0.02% compilation time: <1% of which was recompilation)
