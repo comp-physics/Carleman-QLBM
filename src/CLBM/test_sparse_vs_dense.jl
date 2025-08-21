@@ -112,8 +112,8 @@ function test_sparse_vs_dense_carleman()
         end
     end
     
-    println("Dense version average time: $(time_dense/5) seconds")
-    println("Sparse version average time: $(time_sparse/5) seconds")
+    println("Dense version average time: $(round(time_dense/5, digits=4)) seconds")
+    println("Sparse version average time: $(round(time_sparse/5, digits=4)) seconds")
     
     if time_sparse < time_dense
         println("✓ Sparse version is faster!")

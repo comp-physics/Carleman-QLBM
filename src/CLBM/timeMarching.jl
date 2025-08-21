@@ -50,12 +50,10 @@ function carleman_C_sparse(Q, truncation_order, poly_order, f, omega, tau_value,
             if ind_col >= ind_row - 1 && ind_col <= ind_row + poly_order - 1
                 ind_row_C, ind_col_C = carleman_C_block_dim(Q, ind_row, ind_col, ncol_zero_ini)
                 
-                # Get the block matrix
-                A_block = carleman_transferA(ind_row, ind_col, Q, f, omega, tau_value, force_factor, w_value, e_value, F0, ngrid)
-                
-                # Convert block to sparse and extract indices/values
-                A_sparse = sparse(A_block)
-                block_I, block_J, block_vals = findnz(A_sparse)
+                # Get the block matrix using sparse operations
+                A_block_sparse = carleman_transferA_sparse(ind_row, ind_col, Q, f, omega, tau_value, force_factor, w_value, e_value, F0, ngrid)
+                # Extract indices/values from sparse matrix
+                block_I, block_J, block_vals = findnz(A_block_sparse)
                 
                 # Adjust indices to global matrix coordinates
                 global_I = block_I .+ (first(ind_row_C) - 1)
@@ -161,3 +159,102 @@ function timeMarching_collision_CLBM_sparse(omega, f, tau_value, Q, truncation_o
     
     return VT_f, VT, uT, fT
 end
+
+# ========================================================================
+# SPARSE KRONECKER PRODUCT FUNCTIONS FOR MEMORY-EFFICIENT OPERATIONS
+# ========================================================================
+
+function Kron_kth_sparse(ff, k)
+    """Sparse version of Kron_kth that builds Kronecker powers efficiently"""
+    if k == 1
+        return sparse(ff)
+    else
+        fk = sparse(ff)
+        for i = 1:k-1
+            fk = kron(fk, sparse(ff))
+        end
+        return fk
+    end
+end
+
+function Kron_kth_identity_sparse(Fj, i, rth, Q)
+    """Sparse version of Kron_kth_identity using sparse identity matrices"""
+    identity_sparse = sparse(1.0I, Q, Q)
+    
+    if rth > i
+        error("rth must be smaller than i")
+    end
+    
+    if i == 1
+        return sparse(Fj)
+    else
+        if rth == 1
+            imatrix_right = Kron_kth_sparse(identity_sparse, i - rth)
+            return kron(sparse(Fj), imatrix_right)
+        elseif rth == i
+            imatrix_left = Kron_kth_sparse(identity_sparse, rth - 1)
+            return kron(imatrix_left, sparse(Fj))
+        else
+            imatrix_left = Kron_kth_sparse(identity_sparse, rth - 1)
+            imatrix_right = Kron_kth_sparse(identity_sparse, i - rth)
+            A_sub = kron(imatrix_left, sparse(Fj))
+            return kron(A_sub, imatrix_right)
+        end
+    end
+end
+
+function sum_Kron_kth_identity_sparse(Fj, i, Q)
+    """Sparse version of sum_Kron_kth_identity"""
+    A_ij = Kron_kth_identity_sparse(Fj, i, 1, Q)
+    for rth = 2:i
+        A_ij = A_ij + Kron_kth_identity_sparse(Fj, i, rth, Q)
+    end
+    return A_ij
+end
+
+function transferA_ngrid_sparse(i, j, Q, ngrid)
+    """Sparse version of transferA_ngrid - avoids creating large dense matrices"""
+    # Get the appropriate F matrix
+    if j == 1
+        Fj_ngrid = F1_ngrid
+    elseif j == 2
+        Fj_ngrid = F2_ngrid
+    elseif j == 3
+        Fj_ngrid = F3_ngrid
+    else
+        error("j of F^{j} must be 1, 2, 3, ..., poly_order")
+    end
+    
+    # Use sparse version of sum_Kron_kth_identity
+    A_ij = sum_Kron_kth_identity_sparse(Fj_ngrid, i, Q * ngrid)
+    
+    return A_ij
+end
+
+function carleman_transferA_sparse(ind_row, ind_col, Q, f, omega, tau_value, force_factor, w_value, e_value, F0, ngrid)
+    """Sparse version of carleman_transferA"""
+    if ind_row <= ind_col 
+        i = ind_row
+        if ngrid > 1
+            j = ind_col
+        else
+            j = Int(ind_col - (i - 1))
+        end
+        A = transferA_ngrid_sparse(i, j, Q, ngrid)
+    else
+       # The A_{i+j-1}^i with i >= 1 and j = 0
+        i = ind_row 
+        j = i - 1 
+        if ngrid > 1
+            A = transferA_ngrid_sparse(i, j, Q, ngrid)
+            A = spzeros(size(A)...)  # Return sparse zero matrix
+        else
+            # Use sparse version for F0 term
+            A = sum_Kron_kth_identity_sparse(F0, i, Q * ngrid)
+        end
+    end
+    
+    return A
+end
+
+
