@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        julia-version: ['1.9', '1.10']
+        os: [ubuntu-latest, macOS-latest]
+        
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Julia
+      uses: julia-actions/setup-julia@v1
+      with:
+        version: ${{ matrix.julia-version }}
+        
+    - name: Cache Julia packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.julia
+        key: ${{ runner.os }}-julia-${{ matrix.julia-version }}-${{ hashFiles('**/Project.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-julia-${{ matrix.julia-version }}-
+          
+    - name: Install system dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python3-matplotlib
+        
+    - name: Install system dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew install python
+        pip3 install matplotlib
+        
+    - name: Set environment variables
+      run: |
+        echo "QCFD_HOME=${{ github.workspace }}" >> $GITHUB_ENV
+        echo "QCFD_SRC=${{ github.workspace }}/src/" >> $GITHUB_ENV
+        
+    - name: Install Julia dependencies
+      run: |
+        julia -e 'using Pkg; Pkg.add(["SymPy", "PyPlot", "HDF5", "LaTeXStrings", "SparseArrays", "LinearAlgebra", "Test"])'
+        
+    - name: Run Sparse vs Dense Tests
+      run: |
+        cd src/CLBM
+        julia test_sparse_vs_dense.jl
+        
+    - name: Run Main CLBM Simulation
+      run: |
+        cd src/CLBM
+        julia clbm_run.jl
+        
+    - name: Run Quick Test Runner
+      run: |
+        cd src/CLBM
+        julia run_sparse_test.jl
+        
+    - name: Run Unit Tests
+      run: |
+        cd src/CLBM
+        julia unit_tests.jl

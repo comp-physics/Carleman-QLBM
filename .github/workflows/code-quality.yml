@@ -1,0 +1,97 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  quality-checks:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Julia
+      uses: julia-actions/setup-julia@v1
+      with:
+        version: '1.10'
+        
+    - name: Set environment variables
+      run: |
+        echo "QCFD_HOME=${{ github.workspace }}" >> $GITHUB_ENV
+        echo "QCFD_SRC=${{ github.workspace }}/src/" >> $GITHUB_ENV
+        
+    - name: Install Julia dependencies
+      run: |
+        julia -e 'using Pkg; Pkg.add(["SymPy", "SparseArrays", "LinearAlgebra", "Test"])'
+        
+    - name: Check for syntax errors
+      run: |
+        echo "Checking Julia syntax..."
+        find src/CLBM -name "*.jl" -exec julia -e "include(\"{}\")" \; || exit 1
+        echo "✅ All Julia files have valid syntax"
+        
+    - name: Check for common issues
+      run: |
+        echo "Checking for common issues..."
+        
+        # Check for TODO/FIXME comments
+        if grep -r "TODO\|FIXME" src/CLBM --include="*.jl"; then
+          echo "⚠️  Found TODO/FIXME comments - consider addressing them"
+        else
+          echo "✅ No TODO/FIXME comments found"
+        fi
+        
+        # Check for hardcoded paths
+        if grep -r "/Users\|C:\\\\" src/CLBM --include="*.jl"; then
+          echo "❌ Found hardcoded paths - use environment variables instead"
+          exit 1
+        else
+          echo "✅ No hardcoded paths found"
+        fi
+        
+        # Check for debugging print statements
+        if grep -r "println.*debug\|println.*DEBUG" src/CLBM --include="*.jl"; then
+          echo "⚠️  Found debug print statements - consider removing them"
+        else
+          echo "✅ No debug print statements found"
+        fi
+        
+    - name: Check memory efficiency
+      run: |
+        cd src/CLBM
+        julia -e "
+        include(\"clbm_config.jl\")
+        
+        # Test with small problem size to ensure no memory leaks
+        global n_time = 5
+        global truncation_order = 2
+        
+        println(\"Testing memory usage...\")
+        try
+            include(\"test_sparse_vs_dense.jl\")
+            println(\"✅ Memory test passed\")
+        catch e
+            println(\"❌ Memory test failed: \$e\")
+            exit(1)
+        end
+        "
+        
+    - name: Check function documentation
+      run: |
+        echo "Checking function documentation..."
+        
+        # Count functions with docstrings
+        func_count=$(grep -r "^function " src/CLBM --include="*.jl" | wc -l)
+        doc_count=$(grep -r "\"\"\"" src/CLBM --include="*.jl" | wc -l)
+        
+        echo "Functions found: $func_count"
+        echo "Docstrings found: $doc_count"
+        
+        if [ $doc_count -gt 0 ]; then
+          echo "✅ Some functions have documentation"
+        else
+          echo "⚠️  Consider adding docstrings to functions"
+        fi

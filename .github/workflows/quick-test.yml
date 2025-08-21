@@ -1,0 +1,66 @@
+name: Quick Tests
+
+on:
+  push:
+    paths:
+      - 'src/CLBM/**'
+      - '.github/workflows/**'
+  pull_request:
+    paths:
+      - 'src/CLBM/**'
+      - '.github/workflows/**'
+
+jobs:
+  quick-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Julia
+      uses: julia-actions/setup-julia@v1
+      with:
+        version: '1.10'
+        
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python3-matplotlib
+        
+    - name: Set environment variables
+      run: |
+        echo "QCFD_HOME=${{ github.workspace }}" >> $GITHUB_ENV
+        echo "QCFD_SRC=${{ github.workspace }}/src/" >> $GITHUB_ENV
+        
+    - name: Install Julia dependencies
+      run: |
+        julia -e 'using Pkg; Pkg.add(["SymPy", "PyPlot", "HDF5", "LaTeXStrings", "SparseArrays", "LinearAlgebra", "Test"])'
+        
+    - name: Quick syntax check
+      run: |
+        cd src/CLBM
+        julia -e "include(\"timeMarching.jl\"); println(\"✅ timeMarching.jl loads successfully\")"
+        julia -e "include(\"carleman_transferA.jl\"); println(\"✅ carleman_transferA.jl loads successfully\")"
+        julia -e "include(\"clbm_config.jl\"); println(\"✅ clbm_config.jl loads successfully\")"
+        
+    - name: Fast sparse vs dense test
+      run: |
+        cd src/CLBM
+        # Create a minimal test version
+        cat > quick_test.jl << 'EOF'
+        # Quick test with minimal parameters
+        include("clbm_config.jl")
+        
+        # Override for speed
+        global n_time = 3
+        global truncation_order = 2
+        
+        try
+            include("test_sparse_vs_dense.jl")
+            println("✅ Quick sparse vs dense test PASSED")
+        catch e
+            println("❌ Quick test FAILED: $e")
+            exit(1)
+        end
+        EOF
+        julia quick_test.jl
