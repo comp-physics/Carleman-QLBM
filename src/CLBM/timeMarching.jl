@@ -49,7 +49,10 @@ function carleman_C_sparse(Q, truncation_order, poly_order, f, omega, tau_value,
     bt = spzeros(C_dim)
     bt[1:Q] = F0
     
-    # Build sparse matrix by collecting non-zero blocks
+    # FIXED: Build sparse matrix with same overwrite behavior as dense version
+    # Use a temporary dense matrix to handle overlaps correctly, then convert to sparse
+    C_temp = zeros(C_dim, C_dim)
+    
     for ind_row = 1:truncation_order
         for ind_col = 1:truncation_order
             # Only fill blocks that satisfy the sparsity condition
@@ -58,32 +61,16 @@ function carleman_C_sparse(Q, truncation_order, poly_order, f, omega, tau_value,
                 
                 # Get the block matrix using sparse operations
                 A_block_sparse = carleman_transferA_sparse(ind_row, ind_col, Q, f, omega, tau_value, force_factor, w_value, e_value, F0, ngrid)
-                # Extract indices/values from sparse matrix
-                block_I, block_J, block_vals = findnz(A_block_sparse)
                 
-                # OPTIMIZATION: Direct index adjustment to avoid temporary array creation
-                row_offset = first(ind_row_C) - 1
-                col_offset = first(ind_col_C) - 1
-                
-                # OPTIMIZATION: Reserve space and append efficiently
-                n_new = length(block_I)
-                current_size = length(I_indices)
-                resize!(I_indices, current_size + n_new)
-                resize!(J_indices, current_size + n_new)
-                resize!(values, current_size + n_new)
-                
-                # Direct assignment instead of creating temporary arrays
-                @inbounds for k = 1:n_new
-                    I_indices[current_size + k] = block_I[k] + row_offset
-                    J_indices[current_size + k] = block_J[k] + col_offset
-                    values[current_size + k] = block_vals[k]
-                end
+                # FIXED: Use overwrite assignment (same as dense version) 
+                # This ensures later blocks overwrite earlier blocks in overlapping regions
+                C_temp[ind_row_C, ind_col_C] = Array(A_block_sparse)
             end
         end
     end
     
-    # Create sparse matrix
-    C_sparse = sparse(I_indices, J_indices, values, C_dim, C_dim)
+    # Convert the correctly assembled matrix to sparse format
+    C_sparse = sparse(C_temp)
     
     return C_sparse, bt, F0
 end
@@ -127,8 +114,10 @@ end
 function timeMarching_collision_CLBM(omega, f, tau_value, Q, C, truncation_order, e_value, dt, f_ini, n_time, l_plot)
     V0 = carleman_V(f_ini, truncation_order)
     V0 = Float64.(V0)
-#    CL = C .* dt .+ Matrix{Float64}(I, size(C)) # explicit Euler scheme
 
+    # FIXED: Use the pre-computed matrix C passed as parameter (built outside this function)
+    # Also need to compute bt and F0 once (not in the time loop)
+    _, bt, F0 = carleman_C(Q, truncation_order, poly_order, f, omega, tau_value, force_factor, w_value, e_value)
 
     VT = zeros(size(C)[1], n_time)
     VT[:, 1] = V0
@@ -138,21 +127,20 @@ function timeMarching_collision_CLBM(omega, f, tau_value, Q, C, truncation_order
 
     uT = zeros(n_time)
     _, uT[1] = lbm_u(e_value, VT_f[:, 1]) 
-#    println("VT_f=", VT_f)
+
     #---LBM---
     omega_sub = LBM_const_subs(omega, tau_value)
     LB = lambdify(omega_sub * dt .+ f, f)
-    #
+    
     fT = zeros(Q, n_time)
     fT[:, 1] = f_ini 
-    #---
+    
     #---time marching---
     for nt = 2:n_time
-        C, bt, F0 = carleman_C(Q, truncation_order, poly_order, f, omega, tau_value, force_factor, w_value, e_value)
-#        CL = C .* dt .+ Matrix{Float64}(I, size(C))
-#        VT[:, nt] = CL * VT[:, nt - 1]
+        # FIXED: Use passed matrix C and computed bt, F0 - no reconstruction needed
         VT[:, nt] = (C * VT[:, nt - 1] + bt) .* dt .+ VT[:, nt - 1]
         _, uT[nt] = lbm_u(e_value, VT[1:Q, nt]) 
+        
         #---LBM---
         fT_temp = LB(fT[1, nt-1], fT[2, nt-1], fT[3, nt-1]) + F0 * dt
         fT[:, nt] = fT_temp 
@@ -220,10 +208,11 @@ function Kron_kth_sparse(ff, k)
         return issparse(ff) ? ff : sparse(ff)
     else
         # Ensure input is sparse from the start
-        fk = issparse(ff) ? ff : sparse(ff)
+        ff_sparse = issparse(ff) ? ff : sparse(ff)
+        fk = ff_sparse
         for i = 1:k-1
-            # Both operands are already sparse, no need for conversions
-            fk = kron(fk, fk)
+            # FIXED: Match the order in original Kron_kth: kron(ff, fk)
+            fk = kron(ff_sparse, fk)
         end
         return fk
     end

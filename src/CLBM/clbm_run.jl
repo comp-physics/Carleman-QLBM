@@ -41,16 +41,23 @@ f, omega, u, rho = collision(Q, D, w, e, rho0, lTaylor, lorder2)
 
 l_plot = true
 
-##
-#C = carleman_C(Q, truncation_order, poly_order, f, omega, tau_value)
-#
+# Choose dense or sparse implementation based on ngrid size
 global F1_ngrid, F2_ngrid, F3_ngrid = get_coeff_LBM_Fi_ngrid(poly_order, Q, f, omega, tau_value, ngrid)
-C, bt, F0 = carleman_C(Q, truncation_order, poly_order, f, omega, tau_value, force_factor, w_value, e_value)
-V = carleman_V(f, truncation_order)
-##
-#---CLBM vs LBM---
-fT, VT_f, VT = CLBM_collision_test(Q, omega, f, C, truncation_order, dt, tau_value, e_value, n_time, l_plot)
-        #
+
+# Validate and provide guidance on sparse setting
+validate_sparse_setting(use_sparse, ngrid)
+
+# Choose implementation based on user configuration
+if use_sparse
+    println("Using SPARSE Carleman matrix implementation (use_sparse=$use_sparse, ngrid=$ngrid)")
+    fT, VT_f, VT = CLBM_collision_test_sparse(Q, omega, f, truncation_order, dt, tau_value, e_value, n_time, l_plot)
+else
+    println("Using DENSE Carleman matrix implementation (use_sparse=$use_sparse, ngrid=$ngrid)")
+    C, bt, F0 = carleman_C(Q, truncation_order, poly_order, f, omega, tau_value, force_factor, w_value, e_value)
+    V = carleman_V(f, truncation_order)
+    fT, VT_f, VT = CLBM_collision_test(Q, omega, f, C, truncation_order, dt, tau_value, e_value, n_time, l_plot)
+end
+
 title("CLBM-D1Q3, " * L"\tau=" *string(tau_value)  * L", u_0 = 0.1")
 
 lsavef = false
