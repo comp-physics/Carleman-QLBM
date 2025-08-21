@@ -85,7 +85,7 @@ poly_order = 3
 
 truncation_order = 3
 
-l_timeMarch = false
+l_timeMarch = true
 l_plot = true
 
 F1_ngrid, F2_ngrid, F3_ngrid = get_coeff_LBM_Fi_ngrid(poly_order, Q, f, omega, tau_value, ngrid)
@@ -98,7 +98,8 @@ V = carleman_V(f, truncation_order)
 #
 
 if ngrid > 1
-    S_LBM = streaming_matrix(ngrid)
+    #S_LBM = streaming_matrix(ngrid)
+    S_LBM, _ = streaming_operator_D1Q3_interleaved(ngrid, 1)
     S_Fj = get_S_Fj(S_LBM, ngrid)
     S = carleman_S(Q, truncation_order, poly_order, ngrid, S_Fj)
     C_full = C .- S 
@@ -106,10 +107,10 @@ else
     C_full = C 
 end
 
-eigval_C_full = real(eigvals(C_full))
-println("maximum(eigval_C_full)", maximum(eigval_C_full))
-t_arbitrary = collect(0:1.e5:1.e6)
-norm_exp_C = cal_matrix_exp(t_arbitrary, C_full)
+# eigval_C_full = real(eigvals(C_full))
+# println("maximum(eigval_C_full)", maximum(eigval_C_full))
+# t_arbitrary = collect(0:1.e5:1.e6)
+# norm_exp_C = cal_matrix_exp(t_arbitrary, C_full)
 #
 if l_timeMarch
 #---CLBM vs LBM---
