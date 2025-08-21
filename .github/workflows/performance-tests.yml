@@ -30,7 +30,7 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y python3-matplotlib
+        sudo apt-get install -y python3-matplotlib python3-sympy
         
     - name: Set environment variables
       run: |

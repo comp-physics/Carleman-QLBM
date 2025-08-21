@@ -18,6 +18,12 @@ jobs:
       with:
         version: '1.10'
         
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python3-matplotlib python3-sympy
+        # Or alternatively: pip3 install sympy matplotlib
+        
     - name: Set environment variables
       run: |
         echo "QCFD_HOME=${{ github.workspace }}" >> $GITHUB_ENV
