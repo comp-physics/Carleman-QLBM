@@ -824,6 +824,453 @@ end
 
 performance_analysis_D2Q9()
 
+
+function streaming_operator_D3Q27_interleaved(nx, ny, nz, hx, hy, hz)
+    """
+    Create D3Q27 streaming operator with interleaved velocity organization
+    
+    Distribution function order:
+    [f0_x1y1z1, f1_x1y1z1, f2_x1y1z1, ..., f26_x1y1z1, 
+     f0_x2y1z1, f1_x2y1z1, ..., f26_x2y1z1,
+     f0_x3y1z1, ..., 
+     f0_x1y2z1, f1_x1y2z1, ..., f26_x1y2z1,
+     ..., 
+     f0_xnynzn, f1_xnynzn, ..., f26_xnynzn]
+    
+    Args:
+        nx, ny, nz: number of spatial grid points in x, y, z directions
+        hx, hy, hz: grid spacing in x, y, z directions
+        
+    Returns:
+        Single streaming matrix S of size (27*nx*ny*nz, 27*nx*ny*nz)
+    """
+    
+    # D3Q27 velocity vectors: all combinations of {-1, 0, 1}³
+    e = []
+    for ez in [-1, 0, 1]
+        for ey in [-1, 0, 1]
+            for ex in [-1, 0, 1]
+                push!(e, [ex, ey, ez])
+            end
+        end
+    end
+    
+    n_velocities = 27
+    n_spatial = nx * ny * nz
+    n_total = n_velocities * n_spatial
+    
+    # Sparse matrix construction arrays
+    I_idx = Int[]
+    J_idx = Int[]
+    V_vals = Float64[]
+    
+    # Helper function: get global index for velocity vel at position (i,j,k)
+    global_index(vel_idx, i, j, k) = (((k-1) * ny + (j-1)) * nx + (i-1)) * n_velocities + vel_idx
+    
+    println("Building D3Q27 streaming operator...")
+    println("Grid: $nx × $ny × $nz")
+    println("Total DOF: $n_total")
+    
+    # Construct streaming matrix
+    for k in 1:nz      # Loop over z positions
+        for j in 1:ny  # Loop over y positions
+            for i in 1:nx  # Loop over x positions
+                for vel in 1:n_velocities  # Loop over velocities at each position
+                    
+                    row_idx = global_index(vel, i, j, k)
+                    ex, ey, ez = e[vel]  # x, y, z components of velocity
+                    
+                    if ex == 0 && ey == 0 && ez == 0
+                        # Rest particle: f0 doesn't stream
+                        push!(I_idx, row_idx)
+                        push!(J_idx, row_idx) 
+                        push!(V_vals, 0.0)
+                        
+                    else
+                        # Streaming particle: apply central difference
+                        # e⋅∇f = ex * ∂f/∂x + ey * ∂f/∂y + ez * ∂f/∂z
+                        
+                        # x-direction streaming: ex * ∂f/∂x
+                        if ex != 0
+                            if i > 1  # Left neighbor exists
+                                col_idx = global_index(vel, i-1, j, k)
+                                push!(I_idx, row_idx)
+                                push!(J_idx, col_idx)
+                                push!(V_vals, -ex / (2 * hx))
+                            end
+                            
+                            if i < nx  # Right neighbor exists
+                                col_idx = global_index(vel, i+1, j, k)
+                                push!(I_idx, row_idx)
+                                push!(J_idx, col_idx)
+                                push!(V_vals, ex / (2 * hx))
+                            end
+                        end
+                        
+                        # y-direction streaming: ey * ∂f/∂y
+                        if ey != 0
+                            if j > 1  # Bottom neighbor exists
+                                col_idx = global_index(vel, i, j-1, k)
+                                push!(I_idx, row_idx)
+                                push!(J_idx, col_idx)
+                                push!(V_vals, -ey / (2 * hy))
+                            end
+                            
+                            if j < ny  # Top neighbor exists
+                                col_idx = global_index(vel, i, j+1, k)
+                                push!(I_idx, row_idx)
+                                push!(J_idx, col_idx)
+                                push!(V_vals, ey / (2 * hy))
+                            end
+                        end
+                        
+                        # z-direction streaming: ez * ∂f/∂z
+                        if ez != 0
+                            if k > 1  # Back neighbor exists
+                                col_idx = global_index(vel, i, j, k-1)
+                                push!(I_idx, row_idx)
+                                push!(J_idx, col_idx)
+                                push!(V_vals, -ez / (2 * hz))
+                            end
+                            
+                            if k < nz  # Front neighbor exists
+                                col_idx = global_index(vel, i, j, k+1)
+                                push!(I_idx, row_idx)
+                                push!(J_idx, col_idx)
+                                push!(V_vals, ez / (2 * hz))
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        
+        # Progress indicator for large grids
+        if nz > 5 && k % max(1, nz÷10) == 0
+            println("  Progress: $(round(100*k/nz, digits=1))%")
+        end
+    end
+    
+    println("Assembling sparse matrix...")
+    S = sparse(I_idx, J_idx, V_vals, n_total, n_total)
+    println("✓ Assembly complete!")
+    
+    return S, e
+end
+
+# Example usage (small grid for demonstration)
+nx, ny, nz = 3, 3, 3
+hx, hy, hz = 0.1, 0.1, 0.1
+S_interleaved_3D, e_velocities_3D = streaming_operator_D3Q27_interleaved(nx, ny, nz, hx, hy, hz)
+
+println("\nD3Q27 Interleaved Streaming Operator")
+println("=" ^ 50)
+println("Grid size: $nx × $ny × $nz")
+println("Grid spacing: hx=$hx, hy=$hy, hz=$hz") 
+println("Matrix size: $(size(S_interleaved_3D))")
+println("Non-zeros: $(nnz(S_interleaved_3D))")
+println("Sparsity: $(round(100*nnz(S_interleaved_3D)/prod(size(S_interleaved_3D)), digits=3))%")
+println("Organization: [f0_x1y1z1, f1_x1y1z1, ..., f26_x1y1z1, f0_x2y1z1, ...]")
+
+
+function visualize_D3Q27_structure(nx, ny, nz)
+    """
+    Visualize the indexing structure for D3Q27 interleaved format
+    """
+    
+    println("D3Q27 Interleaved Indexing Structure")
+    println("=" ^ 45)
+    println("Grid: $nx × $ny × $nz")
+    println()
+    
+    # Show D3Q27 velocity vectors (first 10 for brevity)
+    println("D3Q27 velocity vectors (showing first 10):")
+    e = []
+    for ez in [-1, 0, 1]
+        for ey in [-1, 0, 1]
+            for ex in [-1, 0, 1]
+                push!(e, [ex, ey, ez])
+            end
+        end
+    end
+    
+    for i in 1:min(10, 27)
+        println("e$(i-1) = $(e[i])")
+    end
+    if length(e) > 10
+        println("... (17 more velocities)")
+    end
+    
+    # Show indexing for first few positions
+    println("\nGlobal index mapping (first few positions):")
+    println("Position (i,j,k) → Range of global indices")
+    println("-" ^ 50)
+    
+    for k in 1:min(2, nz)
+        for j in 1:min(2, ny)
+            for i in 1:min(2, nx)
+                start_idx = (((k-1) * ny + (j-1)) * nx + (i-1)) * 27 + 1
+                end_idx = start_idx + 26
+                println("($i,$j,$k) → [$start_idx:$end_idx]")
+            end
+        end
+    end
+    
+    if nx > 2 || ny > 2 || nz > 2
+        println("...")
+    end
+    
+    # Memory estimation
+    total_dof = 27 * nx * ny * nz
+    matrix_elements = total_dof^2
+    sparse_elements = 27 * nx * ny * nz * 7  # Rough estimate: 7 connections per velocity on average
+    memory_dense_gb = matrix_elements * 8 / (1024^3)
+    memory_sparse_mb = sparse_elements * 16 / (1024^2)  # 16 bytes per sparse entry
+    
+    println("\nMemory requirements:")
+    println("Total DOF: $(total_dof)")
+    println("Dense matrix: $(round(memory_dense_gb, digits=2)) GB")
+    println("Sparse matrix (estimated): $(round(memory_sparse_mb, digits=1)) MB")
+end
+
+visualize_D3Q27_structure(nx, ny, nz)
+
+function extract_velocities_at_position_3D(f_interleaved, i, j, k, nx, ny, nz)
+    """
+    Extract all 27 velocities at position (i,j,k)
+    """
+    start_idx = (((k-1) * ny + (j-1)) * nx + (i-1)) * 27 + 1
+    return f_interleaved[start_idx:start_idx+26]
+end
+
+function extract_velocity_field_3D(f_interleaved, vel, nx, ny, nz)
+    """
+    Extract specific velocity component at all positions as 3D array
+    """
+    result = zeros(nx, ny, nz)
+    for k in 1:nz
+        for j in 1:ny
+            for i in 1:nx
+                global_idx = (((k-1) * ny + (j-1)) * nx + (i-1)) * 27 + vel
+                result[i, j, k] = f_interleaved[global_idx]
+            end
+        end
+    end
+    return result
+end
+
+function set_velocity_at_position_3D!(f_interleaved, i, j, k, vel, value, nx, ny)
+    """
+    Set specific velocity component at position (i,j,k)
+    """
+    global_idx = (((k-1) * ny + (j-1)) * nx + (i-1)) * 27 + vel
+    f_interleaved[global_idx] = value
+end
+
+function reshape_to_grid_format_3D(f_interleaved, nx, ny, nz)
+    """
+    Reshape interleaved format to [nx, ny, nz, 27] array for visualization
+    """
+    result = zeros(nx, ny, nz, 27)
+    for k in 1:nz
+        for j in 1:ny
+            for i in 1:nx
+                for vel in 1:27
+                    global_idx = (((k-1) * ny + (j-1)) * nx + (i-1)) * 27 + vel
+                    result[i, j, k, vel] = f_interleaved[global_idx]
+                end
+            end
+        end
+    end
+    return result
+end
+
+function get_spatial_neighbors_3D(i, j, k, nx, ny, nz)
+    """
+    Get valid spatial neighbors for position (i,j,k)
+    """
+    neighbors = []
+    
+    # 6 face neighbors
+    if i > 1; push!(neighbors, (i-1, j, k, "left")); end
+    if i < nx; push!(neighbors, (i+1, j, k, "right")); end
+    if j > 1; push!(neighbors, (i, j-1, k, "bottom")); end
+    if j < ny; push!(neighbors, (i, j+1, k, "top")); end
+    if k > 1; push!(neighbors, (i, j, k-1, "back")); end
+    if k < nz; push!(neighbors, (i, j, k+1, "front")); end
+    
+    return neighbors
+end
+
+# Demonstration of utility functions
+println("\nUtility Functions Demo")
+println("=" ^ 25)
+
+nx_demo, ny_demo, nz_demo = 2, 2, 2
+total_dof = 27 * nx_demo * ny_demo * nz_demo
+f_demo = collect(1.0:total_dof)  # Sequential numbering
+
+println("Demo vector length: $(length(f_demo))")
+println("Grid size: $nx_demo × $ny_demo × $nz_demo")
+println()
+
+# Extract velocities at position (1,1,1)
+velocities_111 = extract_velocities_at_position_3D(f_demo, 1, 1, 1, nx_demo, ny_demo, nz_demo)
+println("First few velocities at position (1,1,1): $(velocities_111[1:5])...")
+
+# Extract velocity field for f1 (vel=2) 
+vel_field_3d = extract_velocity_field_3D(f_demo, 2, nx_demo, ny_demo, nz_demo)
+println("Velocity field f1 shape: $(size(vel_field_3d))")
+println("f1 at all positions: $(vec(vel_field_3d))")
+
+# Get neighbors
+neighbors = get_spatial_neighbors_3D(1, 1, 1, nx_demo, ny_demo, nz_demo)
+println("Neighbors of (1,1,1): $neighbors")
+
+function test_D3Q27_interleaved_streaming()
+    """
+    Test the D3Q27 interleaved streaming operator with simple functions
+    """
+    
+    nx, ny, nz = 4, 3, 3
+    hx, hy, hz = 1.0, 1.0, 1.0
+    
+    println("Testing D3Q27 Interleaved Streaming")
+    println("=" ^ 40)
+    println("Grid: $nx × $ny × $nz")
+    
+    # Build streaming operator
+    S, e = streaming_operator_D3Q27_interleaved(nx, ny, nz, hx, hy, hz)
+    
+    # Create test distribution functions
+    n_total = 27 * nx * ny * nz
+    f = zeros(n_total)
+    
+    # Initialize with simple test functions
+    for k in 1:nz
+        for j in 1:ny
+            for i in 1:nx
+                x_pos = Float64(i)
+                y_pos = Float64(j)
+                z_pos = Float64(k)
+                
+                for vel in 1:27
+                    global_idx = (((k-1) * ny + (j-1)) * nx + (i-1)) * 27 + vel
+                    
+                    if vel == 1      # f0: constant
+                        f[global_idx] = 1.0
+                    elseif vel == 2  # f1: linear in x (e=[1,0,0])
+                        f[global_idx] = x_pos
+                    elseif vel == 3  # f2: linear in y (e=[0,1,0])
+                        f[global_idx] = y_pos
+                    elseif vel == 4  # f3: linear in z (e=[0,0,1])  
+                        f[global_idx] = z_pos
+                    elseif vel == 5  # f4: x² 
+                        f[global_idx] = x_pos^2
+                    elseif vel == 6  # f5: y²
+                        f[global_idx] = y_pos^2
+                    elseif vel == 7  # f6: z²
+                        f[global_idx] = z_pos^2
+                    else             # Other velocities: small perturbation
+                        f[global_idx] = 0.1 * sin(π * x_pos / nx) * cos(π * y_pos / ny) * sin(π * z_pos / nz)
+                    end
+                end
+            end
+        end
+    end
+    
+    # Apply streaming
+    println("Applying streaming operator...")
+    f_streamed = S * f
+    
+    # Analyze results at center position
+    center_i, center_j, center_k = nx÷2 + 1, ny÷2 + 1, nz÷2 + 1
+    
+    println("\nResults at center position ($center_i,$center_j,$center_k):")
+    println("Velocity | e_vector    | Initial | Streamed | Expected")
+    println("---------|-------------|---------|----------|----------")
+    
+    for vel in 1:min(10, 27)  # Show first 10 velocities
+        global_idx = (((center_k-1) * ny + (center_j-1)) * nx + (center_i-1)) * 27 + vel
+        initial_val = f[global_idx]
+        streamed_val = f_streamed[global_idx]
+        
+        ex, ey, ez = e[vel]
+        expected = "..."
+        
+        if vel == 1  # Rest particle
+            expected = "0"
+        elseif vel == 2  # e[1,0,0]⋅∇(x) = 1
+            expected = "1"
+        elseif vel == 3  # e[0,1,0]⋅∇(y) = 1
+            expected = "1"  
+        elseif vel == 4  # e[0,0,1]⋅∇(z) = 1
+            expected = "1"
+        elseif vel == 5  # e[-1,0,0]⋅∇(x²) = -2x
+            expected = "$(round(-2*center_i, digits=1))"
+        end
+        
+        println("f$(vel-1)      | $([ex,ey,ez]) | $(round(initial_val, digits=2))    | $(round(streamed_val, digits=3))   | $expected")
+    end
+    
+    return f, f_streamed, S
+end
+
+# Run test (with smaller grid to keep output manageable)
+f_initial_3D, f_result_3D, S_test = test_D3Q27_interleaved_streaming()
+
+function performance_analysis_D3Q27()
+    """
+    Analyze performance and memory usage for different grid sizes
+    """
+    
+    # Use small grids due to large memory requirements
+    grid_sizes = [(5,5,5), (8,8,8), (10,10,10)]
+    
+    println("D3Q27 Performance Analysis")
+    println("=" ^ 35)
+    println("Grid Size | Assembly Time | DOF      | Non-zeros | Memory (MB)")
+    println("----------|---------------|----------|-----------|------------")
+    
+    for (nx, ny, nz) in grid_sizes
+        if nx * ny * nz * 27 > 50000  # Skip if too large for demo
+            println("$(nx)×$(ny)×$(nz)   | Skipped (too large for demo)")
+            continue
+        end
+        
+        hx, hy, hz = 1.0/nx, 1.0/ny, 1.0/nz
+        
+        # Time assembly
+        println("Building $nx×$ny×$nz grid...")
+        t = @elapsed S, e = streaming_operator_D3Q27_interleaved(nx, ny, nz, hx, hy, hz)
+        
+        # Calculate memory usage
+        dof = 27 * nx * ny * nz
+        memory_mb = nnz(S) * 16 / (1024^2)  # 16 bytes per sparse entry
+        
+        println("$(nx)×$(ny)×$(nz)   | $(round(t, digits=2)) s        | $(dof)    | $(nnz(S))   | $(round(memory_mb, digits=1))")
+        
+        # Clean up for memory
+        S = nothing
+        GC.gc()
+    end
+    
+    # Theoretical scaling analysis
+    println("\nTheoretical Scaling Analysis:")
+    println("Grid Size | DOF        | Dense Matrix (GB) | Est. Sparse (MB)")
+    println("----------|------------|-------------------|------------------")
+    
+    theoretical_sizes = [(10,10,10), (20,20,20), (50,50,50), (100,100,100)]
+    for (nx, ny, nz) in theoretical_sizes
+        dof = 27 * nx * ny * nz
+        dense_gb = (dof^2 * 8) / (1024^3)
+        sparse_mb = (dof * 7 * 16) / (1024^2)  # Assume ~7 connections per DOF
+        
+        println("$(nx)×$(ny)×$(nz)  | $(dof)   | $(round(dense_gb, digits=1))              | $(round(sparse_mb, digits=1))")
+    end
+end
+
+performance_analysis_D3Q27()
 # Function to create the 1D LBE streaming matrix
 function streaming_matrix_LBE(n::Int)
     # Define the base blocks for f2 (no movement), f3 (right movement), f1 (left movement)
