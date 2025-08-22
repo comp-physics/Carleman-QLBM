@@ -269,7 +269,7 @@ function carleman_V(f, truncation_order)
             for grid_idx = 1:ngrid^2
                 start_idx = (grid_idx - 1) * Q + 1
                 end_idx = grid_idx * Q
-                f_ngrid[start_idx:end_idx] = f
+                f_ngrid[start_idx:end_idx] = f # the input f should be numerical for ngrid > 1. Need to fix this
             end
             # Now take Kronecker powers
             V = append!(V, Kron_kth(f_ngrid, i))

@@ -7,6 +7,7 @@ using PyPlot
 using LaTeXStrings
 
 include(QCFD_HOME * "/visualization/plot_kit.jl")
+include(QCFD_SRC * "/LBM/streaming.jl")
 
 if l_sympy
     using SymPy
@@ -91,10 +92,10 @@ l_plot = true
 F1_ngrid, F2_ngrid, F3_ngrid = get_coeff_LBM_Fi_ngrid(poly_order, Q, f, omega, tau_value, ngrid)
 
 phi = get_phi(f, ngrid)
-V_phi = carleman_V(phi, truncation_order) 
+#V_phi = carleman_V(phi, truncation_order) 
 
 C, bt, F0 = carleman_C(Q, truncation_order, poly_order, f, omega, tau_value, force_factor, w_value, e_value)
-V = carleman_V(f, truncation_order)
+#V = carleman_V(f, truncation_order)
 #
 
 if ngrid > 1
