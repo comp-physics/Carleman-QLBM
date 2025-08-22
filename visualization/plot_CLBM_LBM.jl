@@ -1,8 +1,8 @@
 using PyPlot
-using LaTeXStrings
 
 rc("font",family="sans serif")
-rc("text",usetex="True")
+# Disable LaTeX rendering for CI compatibility - use Unicode characters instead
+rc("text",usetex="False")
 rc("font", size=16)
 
 function fm_plot(fT, n_time, nm_sym, nm_color, nm_label)
@@ -16,8 +16,8 @@ function fm_plot(fT, n_time, nm_sym, nm_color, nm_label)
     for m=1:col
         subplot(row, col, m)
         plot(time, fT[m, :], marker = nm_sym, markersize = 4, color = nm_color, label = nm_label)
-        ylabel(L"f_%$m")
-        xlabel(L"Time")
+        ylabel("f_$m")
+        xlabel("Time")
     end
 end
 
@@ -33,7 +33,7 @@ function plot_CLBM_LBM(fT, VT_f, n_time, nm_color, nm_label, nm_legend)
         subplot(row, col, m)
         plot(time, fT[m, :], "ok", label = nm_legend)
         plot(time, VT_f[m, :], "+",  color = nm_color,  label = nm_label)
-        ylabel(L"f_%$m")
+        ylabel("f_$m")
         xlabel("Time")
     end
     legend(loc= "best")
@@ -53,7 +53,7 @@ function plot_CLBM_LBM_diff(fT, VT_f, n_time, nm_color, nm_label, nm_legend)
         subplot(row, col, m)
         semilogy(time, relative_error[m, :], linestyle = "-", marker = "o", markersize = 4, color = nm_color,  label = nm_label)
        # ylabel(string("Relative error of f", m))
-       ylabel(L"\epsilon^{\rm CLBM}_%$m")
+       ylabel("ε_CLBM_$m")
 #        xlabel("Time step")
         ylim(y_lim)
     end

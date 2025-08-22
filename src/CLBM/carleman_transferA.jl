@@ -264,7 +264,8 @@ function carleman_V(f, truncation_order)
         else
             # For ngrid > 1, we need to expand f to all grid points
             # Create a vector of length Q*ngrid^2 from the Q-element f
-            f_ngrid = zeros(Q * ngrid^2)
+            # Use similar to preserve the element type (symbolic expressions)
+            f_ngrid = similar(f, Q * ngrid^2)
             # Replicate f at each grid point
             for grid_idx = 1:ngrid^2
                 start_idx = (grid_idx - 1) * Q + 1
