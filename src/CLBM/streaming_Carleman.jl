@@ -118,14 +118,6 @@ function sparse_central_diff(n, h)
     return sparse(I, J, V, n, n)
 end
 
-# Large system example
-n = 4
-#h = 1.0/(n+1)
-h = 1.0
-A_sparse = sparse_central_diff(n, h)
-println("Sparse matrix size: $(size(A_sparse))")
-println("Non-zero elements: $(nnz(A_sparse))")
-
 function streaming_operator_D1Q3(nx, hx)
     """
     Construct streaming operators for D1Q3 lattice
@@ -185,20 +177,6 @@ function streaming_operator_D1Q3(nx, hx)
     # Combine all streaming operators into a single matrix
 
     return streaming_ops, e, S_combined
-end
-
-# Example usage D1Q3
-nx = 5
-hx = 1
-S_D1Q3, e_D1Q3, streaming_matrix_out = streaming_operator_D1Q3(nx, hx)
-
-println("D1Q3 Streaming Operators:")
-println("=" ^ 40)
-for i in 1:3
-    println("Velocity e[$i] = $(e_D1Q3[i])")
-    println("Streaming operator S[$i]:")
-    println(Matrix(S_D1Q3[i]))
-    println()
 end
 
 function streaming_operator_D2Q9(nx, ny, hx, hy)
@@ -473,22 +451,6 @@ function streaming_operator_D1Q3_interleaved(nx, hx)
     return S, e
 end
 
-# Example usage
-nx = 5
-hx = 1
-S_interleaved, e_velocities = streaming_operator_D1Q3_interleaved(nx, hx)
-
-println("D1Q3 Interleaved Streaming Operator")
-println("=" ^ 50)
-println("Grid points: $nx")
-println("Grid spacing: $hx") 
-println("Matrix size: $(size(S_interleaved))")
-println("Organization: [f0_x1, f1_x1, f2_x1, f0_x2, f1_x2, f2_x2, ...]")
-println()
-
-println("Full streaming matrix:")
-println(Matrix(S_interleaved))
-println()
 
 function streaming_operator_D2Q9_interleaved(nx, ny, hx, hy)
     """
@@ -591,20 +553,6 @@ function streaming_operator_D2Q9_interleaved(nx, ny, hx, hy)
     return S, e
 end
 
-# Example usage
-nx, ny = 4, 3
-hx, hy = 0.1, 0.1
-S_interleaved_2D, e_velocities_2D = streaming_operator_D2Q9_interleaved(nx, ny, hx, hy)
-
-println("D2Q9 Interleaved Streaming Operator")
-println("=" ^ 50)
-println("Grid size: $nx × $ny")
-println("Grid spacing: hx=$hx, hy=$hy") 
-println("Matrix size: $(size(S_interleaved_2D))")
-println("Non-zeros: $(nnz(S_interleaved_2D))")
-println("Organization: [f0_x1y1, f1_x1y1, ..., f8_x1y1, f0_x2y1, ...]")
-println()
-
 function visualize_D2Q9_structure(nx, ny)
     """
     Visualize the indexing structure for D2Q9 interleaved format
@@ -638,8 +586,6 @@ function visualize_D2Q9_structure(nx, ny)
         println("e$(i-1) = $vel")
     end
 end
-
-visualize_D2Q9_structure(nx, ny)
 
 function test_D2Q9_interleaved_streaming()
     """
@@ -721,8 +667,6 @@ function test_D2Q9_interleaved_streaming()
     return f, f_streamed
 end
 
-f_initial_2D, f_result_2D = test_D2Q9_interleaved_streaming()
-
 function extract_velocities_at_position_2D(f_interleaved, i, j, nx, ny)
     """
     Extract all 9 velocities at position (i,j)
@@ -769,30 +713,6 @@ function reshape_to_grid_format(f_interleaved, nx, ny)
     return result
 end
 
-# Demonstration of utility functions
-println("\nUtility Functions Demo")
-println("=" ^ 25)
-
-nx_demo, ny_demo = 3, 3
-f_demo = collect(1.0:(9*nx_demo*ny_demo))  # Sequential numbering
-
-println("Demo vector length: $(length(f_demo))")
-println("Grid size: $nx_demo × $ny_demo")
-println()
-
-# Extract velocities at position (2,2)
-velocities_22 = extract_velocities_at_position_2D(f_demo, 2, 2, nx_demo, ny_demo)
-println("Velocities at position (2,2): $velocities_22")
-
-# Extract velocity field for f1 (vel=2)
-vel_field = extract_velocity_field_2D(f_demo, 2, nx_demo, ny_demo)
-println("Velocity field f1:")
-println(vel_field')
-
-# Reshape to grid format
-grid_format = reshape_to_grid_format(f_demo, nx_demo, ny_demo)
-println("Shape of grid format: $(size(grid_format))")
-
 function performance_analysis_D2Q9()
     """
     Analyze performance for different grid sizes
@@ -821,9 +741,6 @@ function performance_analysis_D2Q9()
         end
     end
 end
-
-performance_analysis_D2Q9()
-
 
 function streaming_operator_D3Q27_interleaved(nx, ny, nz, hx, hy, hz)
     """
@@ -958,21 +875,6 @@ function streaming_operator_D3Q27_interleaved(nx, ny, nz, hx, hy, hz)
     return S, e
 end
 
-# Example usage (small grid for demonstration)
-nx, ny, nz = 3, 3, 3
-hx, hy, hz = 0.1, 0.1, 0.1
-S_interleaved_3D, e_velocities_3D = streaming_operator_D3Q27_interleaved(nx, ny, nz, hx, hy, hz)
-
-println("\nD3Q27 Interleaved Streaming Operator")
-println("=" ^ 50)
-println("Grid size: $nx × $ny × $nz")
-println("Grid spacing: hx=$hx, hy=$hy, hz=$hz") 
-println("Matrix size: $(size(S_interleaved_3D))")
-println("Non-zeros: $(nnz(S_interleaved_3D))")
-println("Sparsity: $(round(100*nnz(S_interleaved_3D)/prod(size(S_interleaved_3D)), digits=3))%")
-println("Organization: [f0_x1y1z1, f1_x1y1z1, ..., f26_x1y1z1, f0_x2y1z1, ...]")
-
-
 function visualize_D3Q27_structure(nx, ny, nz)
     """
     Visualize the indexing structure for D3Q27 interleaved format
@@ -1032,8 +934,6 @@ function visualize_D3Q27_structure(nx, ny, nz)
     println("Dense matrix: $(round(memory_dense_gb, digits=2)) GB")
     println("Sparse matrix (estimated): $(round(memory_sparse_mb, digits=1)) MB")
 end
-
-visualize_D3Q27_structure(nx, ny, nz)
 
 function extract_velocities_at_position_3D(f_interleaved, i, j, k, nx, ny, nz)
     """
@@ -1101,31 +1001,6 @@ function get_spatial_neighbors_3D(i, j, k, nx, ny, nz)
     
     return neighbors
 end
-
-# Demonstration of utility functions
-println("\nUtility Functions Demo")
-println("=" ^ 25)
-
-nx_demo, ny_demo, nz_demo = 2, 2, 2
-total_dof = 27 * nx_demo * ny_demo * nz_demo
-f_demo = collect(1.0:total_dof)  # Sequential numbering
-
-println("Demo vector length: $(length(f_demo))")
-println("Grid size: $nx_demo × $ny_demo × $nz_demo")
-println()
-
-# Extract velocities at position (1,1,1)
-velocities_111 = extract_velocities_at_position_3D(f_demo, 1, 1, 1, nx_demo, ny_demo, nz_demo)
-println("First few velocities at position (1,1,1): $(velocities_111[1:5])...")
-
-# Extract velocity field for f1 (vel=2) 
-vel_field_3d = extract_velocity_field_3D(f_demo, 2, nx_demo, ny_demo, nz_demo)
-println("Velocity field f1 shape: $(size(vel_field_3d))")
-println("f1 at all positions: $(vec(vel_field_3d))")
-
-# Get neighbors
-neighbors = get_spatial_neighbors_3D(1, 1, 1, nx_demo, ny_demo, nz_demo)
-println("Neighbors of (1,1,1): $neighbors")
 
 function test_D3Q27_interleaved_streaming()
     """
@@ -1216,9 +1091,6 @@ function test_D3Q27_interleaved_streaming()
     return f, f_streamed, S
 end
 
-# Run test (with smaller grid to keep output manageable)
-f_initial_3D, f_result_3D, S_test = test_D3Q27_interleaved_streaming()
-
 function performance_analysis_D3Q27()
     """
     Analyze performance and memory usage for different grid sizes
@@ -1270,7 +1142,6 @@ function performance_analysis_D3Q27()
     end
 end
 
-performance_analysis_D3Q27()
 # Function to create the 1D LBE streaming matrix
 function streaming_matrix_LBE(n::Int)
     # Define the base blocks for f2 (no movement), f3 (right movement), f1 (left movement)
