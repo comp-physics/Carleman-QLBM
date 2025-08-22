@@ -4,7 +4,17 @@ QCFD_HOME = ENV["QCFD_HOME"]
 
 using HDF5
 using PyPlot
-using LaTeXStrings
+
+# Configure matplotlib for CI/headless environments
+try
+    if !haskey(ENV, "DISPLAY") || ENV["DISPLAY"] == ""
+        # No display available, use non-interactive backend
+        matplotlib.pyplot.switch_backend("Agg")
+        println("Using non-interactive plotting backend for headless environment")
+    end
+catch
+    # Fallback if backend switching fails
+end
 
 include(QCFD_HOME * "/visualization/plot_kit.jl")
 
@@ -57,7 +67,7 @@ else
     fT, VT_f, VT = CLBM_collision_test(Q, omega, f, C, truncation_order, dt, tau_value, e_value, n_time, l_plot)
 end
 
-title("CLBM-D1Q3, " * L"\tau=" *string(tau_value)  * L", u_0 = 0.1")
+title("CLBM-D1Q3, τ=" *string(tau_value)  * ", u_0 = 0.1")
 
 # Ensure the plot is displayed
 show()
