@@ -9,7 +9,7 @@ using Printf
 using LaTeXStrings
 
 # -------------------------
-# kronp.m -> Julia [2]
+# kronp.m from https://github.com/JuliaReach/CarlemanLinearization.jl -> Julia 
 # -------------------------
 function kronp(A, k::Int)
 B = 1
@@ -33,13 +33,11 @@ function main()
     f = 1.0
     T = 3.0
 
-    # Source function [1]
     F0_fun(t, x) = U0 .* exp.(-((x .- L0/4).^2) ./ (2*(L0/32)^2)) .* cos.(2*pi*t)
 
     N_max = 4
     ode_deg = 2
 
-    # %% Initialize [1]
     Ns = collect(1:N_max)
     nu = U0 * L0 / Re0
     Tnl = L0 / U0
@@ -62,7 +60,6 @@ function main()
     xs_pde = collect(range(x0, x1; length=nx_pde))
     ts_pde = collect(range(t0, t1; length=nt_pde))
 
-    # %% Discretize Burger's equation [1]
     F0 = zeros(nt, nx)
     for it in 1:nt
         F0[it, :] .= F0_fun(ts[it], xs)
@@ -78,14 +75,8 @@ function main()
     end
     F1 .-= beta * I(nx)
 
-    # F2 using the MATLAB linear indexing pattern [1]
-    # MATLAB:
-    # F2 = zeros(nx,nx^2);
-    # F2((nx^2+nx+1):(nx^2+nx+1):end) = -1/(4*dx);
-    # F2(1+1:(nx^2+nx+1):end) = +1/(4*dx);
     F2 = zeros(nx, nx^2)
     step = nx^2 + nx + 1
-    # Julia uses column-major like MATLAB, and vec(F2) matches MATLAB linear indexing (1-based).
     vF2 = vec(F2)
     for idx in step:step:length(vF2)
         vF2[idx] = -1/(4*dx)
@@ -95,40 +86,29 @@ function main()
     end
     F2 = reshape(vF2, nx, nx^2)
 
-    # Enforce Dirichlet boundaries within the domain [1]
     F1[1, :] .= 0
     F1[end, :] .= 0
     F2[1, :] .= 0
     F2[end, :] .= 0
 
-    # Initial condition [1]
     u0(x) = -U0*sin(2*pi*f*x/L0)
     u0s = u0.(xs)
 
-    # ODE for ode45 solver [1]
-    # F0_interp = @(t) interp1(ts,F0,t)';
-    # We'll build interpolants for each spatial component.
     F0_itps = [linear_interpolation(ts, F0[:,j]; extrapolation_bc=Line()) for j in 1:nx]
     F0_interp(t) = [F0_itps[j](t) for j in 1:nx]
 
-    # burgers_odefun = @(t,u) F0_interp(t) + F1*u + F2*kron(u,u); [1]
     function burgers_odefun!(du, u, p, t)
         du .= F0_interp(t) .+ F1*u .+ F2*(kron(u,u))
         return nothing
     end
 
-    # PDE definition for pdepe [1] -> MOL replacement:
-    # u_t = d/dx( nu*u_x - u^2/2 ) + (-beta*u + F0_fun(t,x))
     function pde_rhs!(du, u, p, t)
         # enforce Dirichlet
         uL = 0.0
         uR = 0.0
 
-        # copy boundary values into local view
-        # (avoid mutating u itself; just treat boundary as fixed for flux)
         dxl = xs_pde[2] - xs_pde[1]
 
-        # compute dudx (central)
         dudx = zeros(length(u))
         for i in 2:length(u)-1
             dudx[i] = (u[i+1] - u[i-1])/(2*dxl)
@@ -143,13 +123,11 @@ function main()
         src = -beta .* u .+ F0_fun(t, xs_pde)
         du .= flux_x .+ src
 
-        # Dirichlet => time derivative zero at boundaries
         du[1] = 0.0
         du[end] = 0.0
         return nothing
     end
 
-    # %% Check CFL condition [1]
     C1_e = U0*dt/dx
     C2_e = 2*nu*dt/dx^2
     C1_ode = U0*dt_ode/dx
@@ -163,7 +141,6 @@ function main()
     if C1_pde > 1; error(@sprintf("C1_pde = %.2f\n", C1_pde)); end
     if C2_pde > 1; error(@sprintf("C2_pde = %.2f\n", C2_pde)); end
 
-    # %% Calculate the Carleman convergence number [1]
     lambdas = eigvals(F1)
     lambdas = filter(!=(0.0), lambdas)
     lam = maximum(lambdas)
@@ -183,22 +160,18 @@ function main()
         @info "Perturbation too large"
     end
 
-    # %% Prepare Carleman matrix [1]
     println("Preparing Carleman matrix")
     dNs = zeros(Int, N_max)
     for N in Ns
         dNs[N] = Int((nx^(N+1) - nx) ÷ (nx - 1))
     end
 
-    # A = spalloc(dNs(end),dNs(end),dNs(end)*nx) [as described by you + block use in [1]]
     A = spzeros(Float64, dNs[end], dNs[end])
 
-    # Fs = [F0_fun(1,xs)' F1 F2] [as described by you, and used in [1]]
     Fs = hcat(reshape(F0_fun(1.0, xs), nx, 1), F1, F2)
 
     Inx = sparse(I(nx))
 
-    # Assemble A blocks [1]
     for i in Ns
         for j in 0:min(ode_deg, N_max - i + 1)
             if i == 1 && j == 0
@@ -210,7 +183,6 @@ function main()
             b0 = 1 + (nx^(j+i-1) - nx) ÷ (nx - 1)
             b1 = b0 + nx^(j+i-1) - 1
 
-            # Aij = spalloc(nx^i,nx^(i+j-1),nx^(i+j-1+1)); [1]
             Aij = spzeros(Float64, nx^i, nx^(i+j-1))
 
             f0 = 1 + (nx^j - nx) ÷ (nx - 1) + 1
@@ -227,7 +199,6 @@ function main()
         end
     end
 
-    # %% Solve Carleman system [1]
     ys_c_N = zeros(Float64, N_max, nt, dNs[end])
     for N in Ns
         dimN = dNs[N]
@@ -274,7 +245,6 @@ function main()
     end
     us_c_N = ys_c_N[:, :, 1:nx]  # [1]
 
-    # %% Solve direct Euler [1]
     println("Solving direct Euler")
     us_e = zeros(Float64, nt, nx)
     us_e[1, :] .= u0s
@@ -284,20 +254,18 @@ function main()
         us_e[k+1, :] .= us_e[k, :] .+ dt .* tmp
     end
 
-    # %% Solve "exact" ODE (ode45 equivalent) [1]
     println("Solving \"exact\" ODE")
     prob_ode = ODEProblem(burgers_odefun!, u0s, (t0, t1))
     sol_ode = solve(prob_ode, Tsit5(); reltol=1e-10, abstol=1e-10, saveat=ts_ode)
     us_ode = reduce(hcat, sol_ode.u)'  # (nt_ode, nx)
 
-    # us_d = interp1(ts_ode,us_ode,ts) [1]
     us_d = zeros(nt, nx)
     for j in 1:nx
         itp = linear_interpolation(ts_ode, us_ode[:, j]; extrapolation_bc=Line())
         us_d[:, j] .= itp.(ts)
     end
 
-    # %% Solve "exact" PDE (pdepe replacement) + interpolation [1]
+    
     println("Solving \"exact\" PDE")
     u0_pde = u0.(xs_pde)
     u0_pde[1] = 0.0
@@ -306,7 +274,6 @@ function main()
     sol_pde = solve(prob_pde, Tsit5(); reltol=1e-6, abstol=1e-8, saveat=ts_pde)
     us_pde = reduce(hcat, sol_pde.u)'  # (nt_pde, nx_pde)
 
-    # Interpolate so we can compare with other solutions (time then space) [1]
     us_pde_interp_temp = zeros(nt, nx_pde)
     for i in 1:nx_pde
         itp_t = linear_interpolation(ts_pde, us_pde[:, i]; extrapolation_bc=Line())
@@ -376,12 +343,9 @@ function main()
         end
     end
 
-    # %% Plot errors [1]
     i_plot = findfirst(>=(t_plot), ts)
     i_start = Int(ceil(i_plot*3/4))
 
-    #p1 = plot(xs_pde, us_pde[1, :]; linetype=:dash, color=:black, label="Initial condition")
-    #plot!(p1, xs_pde, F0_fun(1.0, xs_pde); linetype=:dashdot, color=:black, label="Source shape")
     p1 = plot(xs_pde, us_pde[1, :]; linestyle=:dash, color=:black, label="Initial condition")
     plot!(p1, xs_pde, F0_fun(1.0, xs_pde); linestyle=:dashdot, color=:black, label="Source shape")
     plot!(p1, xs, us_d[i_plot, :]; marker=:circle, color=:black, label=L"Direct Euler solution at $T_{nl}/3$")
@@ -413,7 +377,7 @@ function main()
     plt = plot(p1, p2, p3; layout=@layout([a{0.55h}; b c]), size=(1000, 700), plot_title=bigtitle)
     display(plt)
 
-    # MATLAB savefig(...) -> save as PNG in Julia
+    
     outname = @sprintf("vbe_re0_%.2f_N_%d_nx_%d_nt_%d_rev2.png", Re0, N_max, nx, nt)
     savefig(plt, outname)
 
