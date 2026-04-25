@@ -1,4 +1,4 @@
-# carleman_burgers_full.jl
+# carleman_burgers.jl
 
 using LinearAlgebra
 using SparseArrays
