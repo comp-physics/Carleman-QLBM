@@ -21,8 +21,8 @@ end
 test_files = [
     QCFD_HOME * "/julia_lib/matrix_kit.jl",
     QCFD_HOME * "/visualization/plot_kit.jl",
-    QCFD_SRC * "CLBM/clbm_config.jl",
-    QCFD_SRC * "CLBM/timeMarching.jl",
+    QCFD_SRC * "CLBE/clbm_config.jl",
+    QCFD_SRC * "CLBE/timeMarching.jl",
     QCFD_SRC * "LBM/lbm_cons.jl"
 ]
 

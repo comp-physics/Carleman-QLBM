@@ -8,28 +8,28 @@ using Test
 using LinearAlgebra
 
 # Load centralized configuration
-include("clbm_config.jl")
+include("clbe_config.jl")
 
 include(QCFD_HOME * "/visualization/plot_kit.jl")
 
 if l_sympy
     using SymPy
     using LinearAlgebra
-    include(QCFD_SRC * "CLBM/coeffs_poly.jl")
+    include(QCFD_SRC * "CLBE/coeffs_poly.jl")
 else
     using Symbolics
 end
 
 # Include necessary files
-include(QCFD_SRC * "CLBM/collision_sym.jl")
-include(QCFD_SRC * "CLBM/carleman_transferA.jl")
-include(QCFD_SRC * "CLBM/carleman_transferA_ngrid.jl")
-include(QCFD_SRC * "CLBM/LBM_const_subs.jl")
+include(QCFD_SRC * "CLBE/collision_sym.jl")
+include(QCFD_SRC * "CLBE/carleman_transferA.jl")
+include(QCFD_SRC * "CLBE/carleman_transferA_ngrid.jl")
+include(QCFD_SRC * "CLBE/LBM_const_subs.jl")
 include(QCFD_SRC * "LBM/lbm_cons.jl")
 include(QCFD_SRC * "LBM/lbm_const_sym.jl")
 include(QCFD_SRC * "LBM/forcing.jl")
 include(QCFD_SRC * "LBM/f_initial.jl")
-include(QCFD_SRC * "CLBM/timeMarching.jl")
+include(QCFD_SRC * "CLBE/timeMarching.jl")
 
 function test_sparse_vs_dense_carleman()
     println("Testing sparse vs dense Carleman matrix implementations...")

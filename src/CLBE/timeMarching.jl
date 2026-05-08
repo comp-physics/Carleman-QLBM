@@ -1,4 +1,164 @@
+using LinearAlgebra
 using SparseArrays
+using Statistics
+
+# Direct semi-discrete n-point LBE is implemented in src/LBE/direct_LBE.jl;
+# this file hosts the Carleman-linearized time marching and sparse assembly.
+
+const CLBE_MATRIX_EXP_WARN_DIM = 400
+const CLBE_KRYLOV_DIM_DEFAULT = 30
+const CLBE_KRYLOV_TOL_DEFAULT = 1e-10
+
+function normalize_clbe_integrator(integrator)
+    if integrator in (:euler, "euler")
+        return :euler
+    elseif integrator in (:matrix_exponential, :exp, "matrix_exponential", "exp")
+        return :matrix_exponential
+    else
+        error("Unsupported CLBE integrator $(repr(integrator)). Supported options are :euler and :matrix_exponential (alias :exp).")
+    end
+end
+
+function affine_augmented_mul(C_sparse, bt, x)
+    state_dim = size(C_sparse, 1)
+    y = zeros(Float64, state_dim + 1)
+    y[1:state_dim] .= C_sparse * view(x, 1:state_dim) .+ bt .* x[end]
+    y[end] = 0.0
+    return y
+end
+
+function krylov_expv_affine(C_sparse, bt, v, dt; m=CLBE_KRYLOV_DIM_DEFAULT, tol=CLBE_KRYLOV_TOL_DEFAULT)
+    n_aug = length(v)
+    beta = norm(v)
+    if iszero(beta)
+        return copy(v)
+    end
+
+    m_eff = min(m, n_aug)
+    V = zeros(Float64, n_aug, m_eff + 1)
+    H = zeros(Float64, m_eff + 1, m_eff)
+    V[:, 1] = v ./ beta
+
+    actual_m = m_eff
+    for j = 1:m_eff
+        w = affine_augmented_mul(C_sparse, bt, view(V, :, j))
+        for i = 1:j
+            hij = dot(view(V, :, i), w)
+            H[i, j] = hij
+            w .-= hij .* view(V, :, i)
+        end
+
+        hnext = norm(w)
+        H[j + 1, j] = hnext
+
+        if hnext <= tol
+            actual_m = j
+            break
+        end
+
+        if j < m_eff
+            V[:, j + 1] = w ./ hnext
+        end
+    end
+
+    H_small = H[1:actual_m, 1:actual_m]
+    e1 = zeros(Float64, actual_m)
+    e1[1] = beta
+    y_small = exp(dt * H_small) * e1
+
+    return V[:, 1:actual_m] * y_small
+end
+
+function warn_large_matrix_exponential_dimension(state_dim)
+    if state_dim > CLBE_MATRIX_EXP_WARN_DIM
+        @warn(
+            "Large lifted CLBE dimension for matrix-exponential integrator; using sparse Krylov expv-style propagation instead of dense exp(A)." *
+            " Performance/accuracy depend on Krylov subspace size.",
+            state_dim=state_dim,
+            warn_dim=CLBE_MATRIX_EXP_WARN_DIM,
+            krylov_dim=CLBE_KRYLOV_DIM_DEFAULT,
+            krylov_tol=CLBE_KRYLOV_TOL_DEFAULT,
+        )
+    end
+end
+
+function timeMarching_state_CLBM_sparse(omega, f, tau_value, Q, truncation_order, dt, phi_ini, n_time; S_lbm=nothing, nspatial=ngrid, integrator=:euler)
+    V0 = Float64.(carleman_V(phi_ini, truncation_order))
+    integrator_key = normalize_clbe_integrator(integrator)
+
+    C_sparse, bt, _ = build_full_clbe_generator_sparse(
+        omega,
+        f,
+        tau_value,
+        Q,
+        truncation_order,
+        poly_order,
+        force_factor,
+        w_value,
+        e_value;
+        S_lbm=S_lbm,
+        nspatial=nspatial,
+    )
+
+    VT = zeros(length(V0), n_time)
+    VT[:, 1] = V0
+
+    phiT = zeros(length(phi_ini), n_time)
+    phiT[:, 1] = Float64.(phi_ini)
+
+    if integrator_key == :euler
+        for nt = 2:n_time
+            VT[:, nt] = (C_sparse * VT[:, nt - 1] + bt) .* dt .+ VT[:, nt - 1]
+            phiT[:, nt] = VT[1:length(phi_ini), nt]
+        end
+    else
+        warn_large_matrix_exponential_dimension(size(C_sparse, 1))
+        augmented_state = vcat(V0, 1.0)
+        for nt = 2:n_time
+            augmented_state = krylov_expv_affine(C_sparse, bt, augmented_state, dt)
+            VT[:, nt] = augmented_state[1:length(V0)]
+            phiT[:, nt] = VT[1:length(phi_ini), nt]
+        end
+    end
+
+    return phiT, VT
+end
+
+function domain_average_distribution_history(phiT, Q, ngrid)
+    avg_fT = zeros(Q, size(phiT, 2))
+
+    for nt = 1:size(phiT, 2)
+        avg_fT[:, nt] = vec(mean(reshape(phiT[:, nt], Q, ngrid), dims=2))
+    end
+
+    return avg_fT
+end
+
+function build_streaming_carleman_operator(Q, truncation_order, poly_order, ngrid; S_lbm=nothing)
+    if ngrid <= 1
+        return nothing
+    end
+
+    streaming_matrix = S_lbm === nothing ? streaming_operator_D1Q3_interleaved(ngrid, 1)[1] : S_lbm
+    return carleman_S(Q, truncation_order, poly_order, ngrid, streaming_matrix)
+end
+
+function build_streaming_carleman_operator_sparse(Q, truncation_order, poly_order, ngrid; S_lbm=nothing)
+    if ngrid <= 1
+        return nothing
+    end
+
+    streaming_matrix = S_lbm === nothing ? streaming_operator_D1Q3_interleaved(ngrid, 1)[1] : S_lbm
+    return carleman_S_sparse(Q, truncation_order, poly_order, ngrid, streaming_matrix)
+end
+
+function build_full_clbe_generator_sparse(omega, f, tau_value, Q, truncation_order, poly_order, force_factor, w_value, e_value; S_lbm=nothing, nspatial=ngrid)
+    C_sparse, bt, F0 = carleman_C_sparse(Q, truncation_order, poly_order, f, omega, tau_value, force_factor, w_value, e_value)
+    if nspatial > 1
+        C_sparse = C_sparse - build_streaming_carleman_operator_sparse(Q, truncation_order, poly_order, nspatial; S_lbm=S_lbm)
+    end
+    return C_sparse, bt, F0
+end
 
 function timeMarching_collision(omega, f, f_ini, tau_value, e_value, dt,  n_time, l_plot)
     omega_sub = LBM_const_subs(omega, tau_value)
@@ -183,7 +343,13 @@ function timeMarching_collision_CLBM(omega, f, tau_value, Q, C, truncation_order
     # Also need to compute bt and F0 once (not in the time loop)
     _, bt, F0 = carleman_C(Q, truncation_order, poly_order, f, omega, tau_value, force_factor, w_value, e_value)
 
-    VT = zeros(size(C)[1], n_time)
+    C_eff = if ngrid > 1
+        C .- build_streaming_carleman_operator(Q, truncation_order, poly_order, ngrid)
+    else
+        C
+    end
+
+    VT = zeros(size(C_eff)[1], n_time)
     VT[:, 1] = V0
 
     VT_f = zeros(Q, n_time)
@@ -202,7 +368,7 @@ function timeMarching_collision_CLBM(omega, f, tau_value, Q, C, truncation_order
     #---time marching---
     for nt = 2:n_time
         # FIXED: Use passed matrix C and computed bt, F0 - no reconstruction needed
-        VT[:, nt] = (C * VT[:, nt - 1] + bt) .* dt .+ VT[:, nt - 1]
+        VT[:, nt] = (C_eff * VT[:, nt - 1] + bt) .* dt .+ VT[:, nt - 1]
         _, uT[nt] = lbm_u(e_value, VT[1:Q, nt]) 
         
         #---LBM---
@@ -223,7 +389,6 @@ function timeMarching_collision_CLBM_sparse(omega, f, tau_value, Q, truncation_o
     V0 = carleman_V(f_ini, truncation_order)
     V0 = Float64.(V0)
 
-    # FIXED: Build sparse matrix ONCE outside the time loop for efficiency
     C_sparse, bt, F0 = carleman_C_sparse(Q, truncation_order, poly_order, f, omega, tau_value, force_factor, w_value, e_value)
 
     # Initialize with proper size based on V0 length
@@ -341,23 +506,59 @@ function transferA_ngrid_sparse(i, j, Q, ngrid)
     return A_ij
 end
 
+function transferA_S_sparse(i, Q, ngrid, S_Fj)
+    """Sparse version of transferA_S for lifted streaming operators"""
+    return sum_Kron_kth_identity_sparse(S_Fj, i, Q * ngrid)
+end
+
+function carleman_S_sparse(Q, truncation_order, poly_order, ngrid, S_Fj)
+    """Sparse version of carleman_S that avoids dense lifted streaming assembly"""
+    ncol_zero_ini = 0 # do NOT change this.
+    C_dim = carleman_C_dim(Q, truncation_order, ngrid)
+
+    I_indices = Int[]
+    J_indices = Int[]
+    values = Float64[]
+
+    for ind_row = 1:truncation_order
+        ind_col = ind_row
+        if ind_col >= ind_row - 1 && ind_col <= ind_row + poly_order - 1
+            ind_row_C, _ = carleman_C_block_dim(Q, ind_row, ind_col, ncol_zero_ini)
+            S_block_sparse = transferA_S_sparse(ind_row, Q, ngrid, S_Fj)
+
+            block_I, block_J, block_vals = findnz(S_block_sparse)
+            row_offset = first(ind_row_C) - 1
+            col_offset = first(ind_row_C) - 1
+
+            for k = 1:length(block_I)
+                push!(I_indices, block_I[k] + row_offset)
+                push!(J_indices, block_J[k] + col_offset)
+                push!(values, block_vals[k])
+            end
+        end
+    end
+
+    if isempty(I_indices)
+        return spzeros(C_dim, C_dim)
+    end
+
+    return sparse(I_indices, J_indices, values, C_dim, C_dim)
+end
+
 function carleman_transferA_sparse(ind_row, ind_col, Q, f, omega, tau_value, force_factor, w_value, e_value, F0, ngrid)
     """Sparse version of carleman_transferA"""
     if ind_row <= ind_col 
         i = ind_row
-        if ngrid > 1
-            j = ind_col
-        else
-            j = Int(ind_col - (i - 1))
-        end
+        j = Int(ind_col - (i - 1))
         A = transferA_ngrid_sparse(i, j, Q, ngrid)
     else
        # The A_{i+j-1}^i with i >= 1 and j = 0
         i = ind_row 
         j = i - 1 
         if ngrid > 1
-            A = transferA_ngrid_sparse(i, j, Q, ngrid)
-            A = spzeros(size(A)...)  # Return sparse zero matrix
+            row_dim = (Q * ngrid)^i
+            col_dim = (Q * ngrid)^(i - 1)
+            A = spzeros(row_dim, col_dim)
         else
             # Use sparse version for F0 term
             A = sum_Kron_kth_identity_sparse(F0, i, Q * ngrid)

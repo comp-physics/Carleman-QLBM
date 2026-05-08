@@ -4,23 +4,23 @@ using Profile
 using ProfileView
 
 # Load the CLBM code
-include("src/CLBM/clbm_config.jl")
+include("src/CLBE/clbe_config.jl")
 
 using SymPy
 using LinearAlgebra
 using SparseArrays
 
-include("src/CLBM/coeffs_poly.jl")
-include("src/CLBM/collision_sym.jl")
-include("src/CLBM/carleman_transferA.jl")
-include("src/CLBM/carleman_transferA_ngrid.jl")
-include("src/CLBM/LBM_const_subs.jl")
+include("src/CLBE/coeffs_poly.jl")
+include("src/CLBE/collision_sym.jl")
+include("src/CLBE/carleman_transferA.jl")
+include("src/CLBE/carleman_transferA_ngrid.jl")
+include("src/CLBE/LBM_const_subs.jl")
 include("src/LBM/lbm_cons.jl")
 include("src/LBM/lbm_const_sym.jl")
 include("src/LBM/forcing.jl")
 include("src/LBM/f_initial.jl")
-include("src/CLBM/timeMarching.jl")
-include("src/CLBM/CLBM_collision_test.jl")
+include("src/CLBE/timeMarching.jl")
+include("src/CLBE/CLBE_collision_test.jl")
 
 println("=== CLBM PERFORMANCE PROFILING ===")
 println("Configuration: ngrid=$ngrid, use_sparse=$use_sparse")
@@ -127,7 +127,7 @@ if !isempty(data)
         for (i, (file, count)) in enumerate(sorted_files[1:min(15, end)])
             pct = round(count / length(data) * 100, digits=1)
             # Only show relevant files (skip Julia internals)
-            if occursin("CLBM", file) || occursin("LBM", file) || occursin("carleman", file) || occursin("timeMarching", file)
+            if occursin("CLBE", file) || occursin("LBM", file) || occursin("carleman", file) || occursin("timeMarching", file)
                 println("  $i. $(basename(file)): $count samples ($pct%)")
             end
         end

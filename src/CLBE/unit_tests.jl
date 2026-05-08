@@ -4,7 +4,7 @@ using SparseArrays
 using LinearAlgebra
 
 # Load configuration and functions
-include("clbm_config.jl")
+include("clbe_config.jl")
 
 # Set up symbolic computation
 l_sympy = true
@@ -14,20 +14,20 @@ QCFD_HOME = ENV["QCFD_HOME"]
 # Include necessary modules
 if l_sympy
     using SymPy
-    include(QCFD_SRC * "CLBM/coeffs_poly.jl")
+    include(QCFD_SRC * "CLBE/coeffs_poly.jl")
 else
     using Symbolics
 end
 
-include(QCFD_SRC * "CLBM/collision_sym.jl")
-include(QCFD_SRC * "CLBM/carleman_transferA.jl")
-include(QCFD_SRC * "CLBM/carleman_transferA_ngrid.jl") 
-include(QCFD_SRC * "CLBM/LBM_const_subs.jl")
+include(QCFD_SRC * "CLBE/collision_sym.jl")
+include(QCFD_SRC * "CLBE/carleman_transferA.jl")
+include(QCFD_SRC * "CLBE/carleman_transferA_ngrid.jl") 
+include(QCFD_SRC * "CLBE/LBM_const_subs.jl")
 include(QCFD_SRC * "LBM/lbm_cons.jl")
 include(QCFD_SRC * "LBM/lbm_const_sym.jl")
 include(QCFD_SRC * "LBM/forcing.jl")
 include(QCFD_SRC * "LBM/f_initial.jl")
-include(QCFD_SRC * "CLBM/timeMarching.jl")
+include(QCFD_SRC * "CLBE/timeMarching.jl")
 
 @testset "CLBM Unit Tests" begin
     

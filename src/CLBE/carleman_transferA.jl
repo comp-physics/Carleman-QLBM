@@ -1,8 +1,7 @@
 QCFD_HOME = ENV["QCFD_HOME"]  
 QCFD_SRC = ENV["QCFD_SRC"]  
 include(QCFD_HOME * "/julia_lib/matrix_kit.jl")
-include(QCFD_SRC * "CLBM/LBM_const_subs.jl")
-#include(QCFD_SRC * "LBM/julia/forcing.jl")
+include(QCFD_SRC * "CLBE/LBM_const_subs.jl")
 
 function F_carlemanOrder_Q_collision(iQ, order, f, omega, tau_value)
     #=
@@ -64,13 +63,11 @@ function F_carlemanOrder_collision(Q, order, f, omega, tau_value)
 end
 
 function F0_random_forcing(Q, force_factor, w_value, e_value)
-    LX = 1
-    LY = 1
-    j = 1
-    k = 1
-    fx_domain, fy_domain = forcing_random(LX, LY, 1, force_factor)
-    F0 = forcing_lbm(fx_domain[j, k], fy_domain[j, k], w_value, e_value)
-    return F0
+    if iszero(force_factor)
+        return zeros(Float64, Q)
+    end
+
+    error("Nonzero forcing is not supported in the current TG CLBM driver without explicitly loading and configuring src/LBM/forcing.jl. The TG benchmark path should use force_factor = 0.0.")
 end
 
 function Kron_kth_identity(Fj, i, rth, Q)
@@ -129,11 +126,7 @@ end
 function carleman_transferA(ind_row, ind_col, Q, f, omega, tau_value, force_factor, w_value, e_value, F0, ngrid)
     if ind_row <= ind_col 
         i = ind_row
-        if ngrid > 1
-            j = ind_col
-        else
-            j = Int(ind_col - (i - 1))
-        end
+        j = Int(ind_col - (i - 1))
         A = transferA_ngrid(i, j, Q, ngrid)
     else
        # exit("ind_row must be <= ind_col")
@@ -141,8 +134,9 @@ function carleman_transferA(ind_row, ind_col, Q, f, omega, tau_value, force_fact
         i = ind_row 
         j = i - 1 
         if ngrid > 1
-            A = transferA_ngrid(i, j, Q, ngrid)
-            A[:] .= 0.0
+            row_dim = (Q * ngrid)^i
+            col_dim = (Q * ngrid)^(i - 1)
+            A = zeros(row_dim, col_dim)
         else
             A = transferA_F0(i, Q, force_factor, w_value, e_value, F0, ngrid)
         end
@@ -164,46 +158,29 @@ end
 function carleman_C_dim(Q, truncation_order, ngrid)
     C_dim = 0
     for i = 1:truncation_order
-       # C_dim = C_dim + (Q * ngrid) ^ i
-       # C_dim = C_dim + ngrid * (Q * ngrid) ^ i
-        C_dim = C_dim + (Q * ngrid^2) ^ i
+        C_dim = C_dim + (Q * ngrid) ^ i
     end
     return C_dim
 end
 
 function A_row_dim(Q, truncation_order, ngrid)
-    C_dim = 0
-    for i = 1:truncation_order
-       # C_dim = C_dim + (Q * ngrid) ^ i
-        C_dim = C_dim + ngrid * (Q * ngrid) ^ i
-    end
-    return C_dim
+    return carleman_C_dim(Q, truncation_order, ngrid)
 end
 
 
 function A_col_dim(Q, i, j, ngrid)
-
-    C_dim = ngrid ^ (i-1) * Q ^ (i + j -1)
-    return C_dim
+    return (Q * ngrid) ^ (i + j - 1)
 end
 
 
 function carleman_C_block_dim(Q, ind_row, ind_col, ncol_zero_ini)
-    if ind_row == 1 && ind_col == 1
-#        ind_row_C = Int((Q * ngrid) ^ (ind_row - 1)):Int(carleman_C_dim(Q, ind_row, ngrid)) 
-#        ind_col_C = Int(Q ^ (ind_col - 1)):Int(carleman_C_dim(Q, ind_col, ngrid)) 
-        ind_row_C = 1:Int(carleman_C_dim(Q, ind_row, ngrid)) 
-#        ind_col_C = 1:Int(carleman_C_dim(Q, ind_col, ngrid)) 
-        ind_col_C = 1:Int(A_col_dim(Q, ind_row, ind_col, ngrid)) 
-    else
-        if ngrid > 1
-            ind_row_C = Int(A_row_dim(Q, ind_row - 1, ngrid) + 1):Int(A_row_dim(Q, ind_row, ngrid)) 
-            ind_col_C = Int(A_col_dim(Q, ind_row, ind_col - 1, ngrid) + 1 - ncol_zero_ini):Int(A_col_dim(Q, ind_row, ind_col - 1, ngrid) + A_col_dim(Q, ind_row, ind_col, ngrid) - ncol_zero_ini) 
-        else
-            ind_row_C = Int(carleman_C_dim(Q, ind_row - 1, ngrid) + 1):Int(carleman_C_dim(Q, ind_row, ngrid)) 
-            ind_col_C = Int(carleman_C_dim(Q, ind_col - 1, ngrid) + 1 - ncol_zero_ini):Int(carleman_C_dim(Q, ind_col, ngrid) - ncol_zero_ini) 
-        end
-    end
+    row_start = ind_row == 1 ? 1 : Int(carleman_C_dim(Q, ind_row - 1, ngrid) + 1)
+    row_end = Int(carleman_C_dim(Q, ind_row, ngrid))
+    col_start = ind_col == 1 ? 1 : Int(carleman_C_dim(Q, ind_col - 1, ngrid) + 1 - ncol_zero_ini)
+    col_end = Int(carleman_C_dim(Q, ind_col, ngrid) - ncol_zero_ini)
+
+    ind_row_C = row_start:row_end
+    ind_col_C = col_start:col_end
 
     return ind_row_C, ind_col_C 
 end
@@ -256,25 +233,15 @@ end
 
 
 function carleman_V(f, truncation_order)
+    base_state = if ngrid == 1 || length(f) != Q
+        collect(f)
+    else
+        get_phi(f, ngrid)
+    end
+
     V = []
     for i = 1:truncation_order
-        if ngrid == 1
-            # Original version for ngrid=1
-            V = append!(V, Kron_kth(f, i))
-        else
-            # For ngrid > 1, we need to expand f to all grid points
-            # Create a vector of length Q*ngrid^2 from the Q-element f
-            # Use similar to preserve the element type (symbolic expressions)
-            f_ngrid = similar(f, Q * ngrid^2)
-            # Replicate f at each grid point
-            for grid_idx = 1:ngrid^2
-                start_idx = (grid_idx - 1) * Q + 1
-                end_idx = grid_idx * Q
-                f_ngrid[start_idx:end_idx] = f # the input f should be numerical for ngrid > 1. Need to fix this
-            end
-            # Now take Kronecker powers
-            V = append!(V, Kron_kth(f_ngrid, i))
-        end
+        V = append!(V, Kron_kth(base_state, i))
     end
     #
     return V

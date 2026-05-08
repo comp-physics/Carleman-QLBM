@@ -1,6 +1,6 @@
 # GitHub Actions CI/CD Workflows
 
-This directory contains automated testing workflows for the CLBM (Carleman Lattice Boltzmann Method) project.
+This directory contains automated testing workflows for the CLBE (Carleman Lattice Boltzmann Equation) project.
 
 ## Workflows
 
@@ -9,13 +9,13 @@ This directory contains automated testing workflows for the CLBM (Carleman Latti
 - **Tests**: Julia 1.9 & 1.10 on Ubuntu & macOS
 - **Coverage**: 
   - Sparse vs Dense matrix tests (adaptive on macOS)
-  - Main CLBM simulation (full on Linux, minimal on macOS)
+  - Main CLBE simulation (full on Linux, minimal on macOS)
   - Unit tests (comprehensive on Linux, minimal on macOS)
   - Integration tests
 - **macOS Compatibility**: Uses `--break-system-packages` and adaptive testing to handle Python environment restrictions
 
 ### 2. **Quick Tests (`quick-test.yml`)**
-- **Triggers**: Changes to `src/CLBM/` files
+- **Triggers**: Changes to `src/CLBE/` files
 - **Purpose**: Fast feedback for development
 - **Tests**:
   - Syntax validation
@@ -45,14 +45,14 @@ Before pushing, you can run tests locally:
 
 ```bash
 # Run comprehensive tests
-cd src/CLBM
+cd src/CLBE
 julia test_sparse_vs_dense.jl
 
 # Run unit tests
 julia unit_tests.jl
 
 # Run main simulation
-julia clbm_run.jl
+julia clbe_run.jl
 ```
 
 ## Test Structure

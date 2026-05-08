@@ -1,6 +1,6 @@
 # Safe testing script for large ngrid values
 
-include("src/CLBM/clbm_config.jl")
+include("src/CLBE/clbe_config.jl")
 
 println("=== SAFE LARGE NGRID TEST ===")
 println("Testing ngrid = $ngrid")
@@ -14,7 +14,7 @@ end
 using LinearAlgebra
 
 # Load minimal dependencies first
-include("src/CLBM/carleman_transferA.jl")
+include("src/CLBE/carleman_transferA.jl")
 
 # Calculate expected memory usage
 function estimate_memory_gb(ngrid_val, Q=3, truncation_order=3)
@@ -58,16 +58,16 @@ println("\nLoading remaining dependencies...")
 using SymPy
 using SparseArrays
 
-include("src/CLBM/coeffs_poly.jl")
-include("src/CLBM/collision_sym.jl")
-include("src/CLBM/carleman_transferA_ngrid.jl")
-include("src/CLBM/LBM_const_subs.jl")
+include("src/CLBE/coeffs_poly.jl")
+include("src/CLBE/collision_sym.jl")
+include("src/CLBE/carleman_transferA_ngrid.jl")
+include("src/CLBE/LBM_const_subs.jl")
 include("src/LBM/lbm_cons.jl")
 include("src/LBM/lbm_const_sym.jl")
 include("src/LBM/forcing.jl")
 include("src/LBM/f_initial.jl")
-include("src/CLBM/timeMarching.jl")
-include("src/CLBM/CLBM_collision_test.jl")
+include("src/CLBE/timeMarching.jl")
+include("src/CLBE/CLBE_collision_test.jl")
 
 println("✅ Dependencies loaded")
 
@@ -203,7 +203,7 @@ println("Matrix construction time: $(round(matrix_construction_time, digits=2))s
 if success
     println("✅ ngrid=$ngrid is feasible with sparse matrices")
     println("   You can now run the full simulation with:")
-    println("   julia src/CLBM/clbm_run.jl")
+    println("   julia src/CLBE/clbe_run.jl")
 else
     println("❌ ngrid=$ngrid is not feasible with current resources")
     println("   Consider reducing the problem size")

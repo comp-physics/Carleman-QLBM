@@ -1,11 +1,11 @@
 # Memory analysis for different ngrid values
 
-include("src/CLBM/clbm_config.jl")
+include("src/CLBE/clbe_config.jl")
 
 using LinearAlgebra
 
 # Load just the dimension calculation function
-include("src/CLBM/carleman_transferA.jl")
+include("src/CLBE/carleman_transferA.jl")
 
 println("=== MEMORY ANALYSIS FOR DIFFERENT NGRID VALUES ===")
 

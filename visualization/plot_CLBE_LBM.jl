@@ -21,7 +21,7 @@ function fm_plot(fT, n_time, nm_sym, nm_color, nm_label)
     end
 end
 
-function plot_CLBM_LBM(fT, VT_f, n_time, nm_color, nm_label, nm_legend)
+function plot_CLBE_LBM(fT, VT_f, n_time, nm_color, nm_label, nm_legend)
     time = range_step(1, n_time, 1)
 
 #    close("all")
@@ -39,7 +39,7 @@ function plot_CLBM_LBM(fT, VT_f, n_time, nm_color, nm_label, nm_legend)
     legend(loc= "best")
 end
 
-function plot_CLBM_LBM_diff(fT, VT_f, n_time, nm_color, nm_label, nm_legend)
+function plot_CLBE_LBM_diff(fT, VT_f, n_time, nm_color, nm_label, nm_legend)
     time = range_step(1, n_time, 1)
 
     relative_error = abs.(VT_f .- fT) ./ fT 
@@ -53,7 +53,7 @@ function plot_CLBM_LBM_diff(fT, VT_f, n_time, nm_color, nm_label, nm_legend)
         subplot(row, col, m)
         semilogy(time, relative_error[m, :], linestyle = "-", marker = "o", markersize = 4, color = nm_color,  label = nm_label)
        # ylabel(string("Relative error of f", m))
-       ylabel("ε_CLBM_$m")
+       ylabel("ε_CLBE_$m")
 #        xlabel("Time step")
         ylim(y_lim)
     end

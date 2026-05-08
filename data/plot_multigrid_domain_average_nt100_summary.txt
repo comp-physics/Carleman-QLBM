@@ -1,0 +1,15 @@
+nt100_output_file = /Users/xiangyu.li/Documents/git-tex/QC/QCFD-QCLBM/figs/plot_multigrid_domain_average_nt100.pdf
+nt100_overall_abs_max = 0.0004599192792154039
+nt100_overall_rel_max = 0.0014193613136039593
+nt100_f1_abs_max = 0.00022995963960767418
+nt100_f1_abs_final = 4.18198114590651e-6
+nt100_f1_rel_max = 0.0014193613136039593
+nt100_f1_rel_final = 2.6112239812028576e-5
+nt100_f2_abs_max = 0.0004599192792154039
+nt100_f2_abs_final = 8.363962291646487e-6
+nt100_f2_rel_max = 0.0006940772806570441
+nt100_f2_rel_final = 1.2551744493600179e-5
+nt100_f3_abs_max = 0.00022995963960761867
+nt100_f3_abs_final = 4.181981145934266e-6
+nt100_f3_rel_max = 0.0013114351129964357
+nt100_f3_rel_final = 2.4105389650797285e-5

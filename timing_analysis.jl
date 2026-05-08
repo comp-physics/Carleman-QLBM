@@ -1,6 +1,6 @@
 # Focused timing analysis to identify CLBM bottlenecks
 
-include("src/CLBM/clbm_config.jl")
+include("src/CLBE/clbe_config.jl")
 
 using SymPy
 using LinearAlgebra
@@ -13,19 +13,19 @@ println()
 
 # Time individual file includes to see setup overhead
 print("Loading coeffs_poly... ")
-@time include("src/CLBM/coeffs_poly.jl")
+@time include("src/CLBE/coeffs_poly.jl")
 
 print("Loading collision_sym... ")
-@time include("src/CLBM/collision_sym.jl")
+@time include("src/CLBE/collision_sym.jl")
 
 print("Loading carleman_transferA... ")
-@time include("src/CLBM/carleman_transferA.jl")
+@time include("src/CLBE/carleman_transferA.jl")
 
 print("Loading carleman_transferA_ngrid... ")
-@time include("src/CLBM/carleman_transferA_ngrid.jl")
+@time include("src/CLBE/carleman_transferA_ngrid.jl")
 
 print("Loading LBM_const_subs... ")
-@time include("src/CLBM/LBM_const_subs.jl")
+@time include("src/CLBE/LBM_const_subs.jl")
 
 print("Loading lbm_cons... ")
 @time include("src/LBM/lbm_cons.jl")
@@ -40,10 +40,10 @@ print("Loading f_initial... ")
 @time include("src/LBM/f_initial.jl")
 
 print("Loading timeMarching... ")
-@time include("src/CLBM/timeMarching.jl")
+@time include("src/CLBE/timeMarching.jl")
 
-print("Loading CLBM_collision_test... ")
-@time include("src/CLBM/CLBM_collision_test.jl")
+print("Loading CLBE_collision_test... ")
+@time include("src/CLBE/CLBE_collision_test.jl")
 
 println("\n=== FUNCTION TIMING ===")
 

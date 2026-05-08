@@ -429,20 +429,19 @@ function streaming_operator_D1Q3_interleaved(nx, hx)
             else
                 # Streaming particle: apply central difference
                 # ∂f/∂x ≈ (f[pos+1] - f[pos-1])/(2*hx)
-                
-                if pos > 1  # Left neighbor exists
-                    col_idx = global_index(vel, pos - 1)
-                    push!(I_idx, row_idx)
-                    push!(J_idx, col_idx)
-                    push!(V_vals, -ex / (2 * hx))
-                end
-                
-                if pos < nx  # Right neighbor exists
-                    col_idx = global_index(vel, pos + 1)
-                    push!(I_idx, row_idx)
-                    push!(J_idx, col_idx)
-                    push!(V_vals, ex / (2 * hx))
-                end
+
+                left_pos = pos == 1 ? nx : pos - 1
+                right_pos = pos == nx ? 1 : pos + 1
+
+                left_col_idx = global_index(vel, left_pos)
+                push!(I_idx, row_idx)
+                push!(J_idx, left_col_idx)
+                push!(V_vals, -ex / (2 * hx))
+
+                right_col_idx = global_index(vel, right_pos)
+                push!(I_idx, row_idx)
+                push!(J_idx, right_col_idx)
+                push!(V_vals, ex / (2 * hx))
             end
         end
     end

@@ -7,7 +7,11 @@ using PyPlot
 
 # Configure matplotlib for CI/headless environments
 try
-    if !haskey(ENV, "DISPLAY") || ENV["DISPLAY"] == ""
+    is_headless_linux = Sys.islinux() &&
+        get(ENV, "DISPLAY", "") == "" &&
+        get(ENV, "WAYLAND_DISPLAY", "") == ""
+
+    if is_headless_linux
         # No display available, use non-interactive backend
         matplotlib.pyplot.switch_backend("Agg")
         println("Using non-interactive plotting backend for headless environment")
@@ -22,7 +26,7 @@ include(QCFD_SRC * "/LBM/streaming.jl")
 if l_sympy
     using SymPy
     using LinearAlgebra
-    include(QCFD_SRC * "CLBM/coeffs_poly.jl")
+    include(QCFD_SRC * "CLBE/coeffs_poly.jl")
 else
     using Symbolics
 end
@@ -64,12 +68,12 @@ include(QCFD_HOME * "/julia_lib/matrix_kit.jl")
 include(QCFD_SRC * "LBM/lbm_cons.jl")
 include(QCFD_SRC * "LBM/lbm_const_sym.jl")
 include(QCFD_SRC * "LBM/forcing.jl")
-include(QCFD_SRC * "CLBM/streaming_Carleman.jl")
-include(QCFD_SRC * "CLBM/collision_sym.jl")
-include(QCFD_SRC * "CLBM/carleman_transferA.jl")
-include(QCFD_SRC * "CLBM/LBM_const_subs.jl")
-include(QCFD_SRC * "CLBM/CLBM_collision_test.jl")
-include(QCFD_SRC * "CLBM/carleman_transferA_ngrid.jl")
+include(QCFD_SRC * "CLBE/streaming_Carleman.jl")
+include(QCFD_SRC * "CLBE/collision_sym.jl")
+include(QCFD_SRC * "CLBE/carleman_transferA.jl")
+include(QCFD_SRC * "CLBE/LBM_const_subs.jl")
+include(QCFD_SRC * "CLBE/CLBE_collision_test.jl")
+include(QCFD_SRC * "CLBE/carleman_transferA_ngrid.jl")
 
 Q = 3
 D = 1
